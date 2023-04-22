@@ -3,6 +3,7 @@ from tqdm import tqdm
 
 import scipy.integrate as integrate
 from scipy.optimize import minimize
+from scipy.stats import skew
 
 #################################################################################################
 
@@ -90,7 +91,7 @@ def project_optimization(s, w, r0, r1, r_bar, r_hat, e_bar, I):
 	B0 = B_0(s, beta, r0, r_hat, r_bar, I)
 	return -(u_x(w-s) + v_x(B0))
 
-def find_upper_s_bound(r0, r1, r_bar, r_hat, e_bar, I, lower=0, upper=5, tolerance=1e-9):
+def find_upper_s_bound(r0, r1, r_bar, r_hat, e_bar, I, lower=0, upper=10, tolerance=1e-9):
 	while True:
 		mid = (lower+upper)/2
 		b = find_optimal_beta(mid, r0, r1, r_bar, r_hat, e_bar, I)
@@ -116,11 +117,9 @@ def project_best_utility(w, r0, r1, r_bar, r_hat, e_bar, I, upper_s_bound):
 #################################################################################################
 
 # SIMULATIONS
-def simulate_lineage_wealth(w_init, r0, r1, r_hat, e_bar, I, reps):
+def simulate_lineage_wealth(w_init, r0, r1, r_bar,r_hat, e_bar, I, upper_s_bound, reps):
 
-	# compute other important constants
-	r_bar  = (1/(r1-r0)) * integrate.quad(lambda x: x, r0, r1)[0] # expected project return
-	upper_s_bound = find_upper_s_bound(r0, r1, r_bar, r_hat, e_bar, I)
+	print(f"Running for I = {I}, e_bar = {e_bar}, r1={r1}...")
 
 	random_vals = np.random.uniform(r0, r1, size=reps)
 	lineage_wealth = np.zeros((reps,))
