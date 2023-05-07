@@ -119,7 +119,7 @@ def project_best_utility(w, r0, r1, r_bar, r_hat, e_bar, I):
         optimal utility, optimal s, optimal beta
     """
 	# optimization parameter is s
-	result = minimize(project_optimization, args=(w, r0, r1, r_bar, r_hat, e_bar, I), bounds=((0,w),), method="L-BFGS-B", x0=w/2)
+	result = minimize(project_optimization, args=(w, r0, r1, r_bar, r_hat, e_bar, I), bounds=((0,w),), method="SLSQP", x0=w/2)
 	s = result.x[0]
 	utility = result.fun[0] 
 	return -utility, s, find_optimal_beta(s, r0, r1, r_bar, r_hat, e_bar, I)
