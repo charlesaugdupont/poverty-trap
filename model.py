@@ -45,7 +45,7 @@ def no_project_best_utility(w, r_hat):
 		optimal utility, optimal s value
 	"""
 	# optimization parameter is s, where 0 <= s <= w
-	result = minimize(consumption_utility, args=(w, r_hat), bounds=((0,w),), x0=w/2, method="Powell")
+	result = minimize(consumption_utility, args=(w, r_hat), bounds=((w*0.1,w*0.9),), x0=w/2, method="Powell")
 	return -result.fun, result.x[0]
 
 #################################################################################################
@@ -84,14 +84,14 @@ def find_optimal_beta(s, r0, r1, r_bar, r_hat, e_bar, I):
         optimal beta value; -1 if it does not exist
     """
 	s = float(s)
-	upper = 1.0
+	upper = 1.3 * (r_bar-r_hat) / (r_bar-r0)
 	while True:
 		try:
 			result = root_scalar(optimal_beta_integral, args=(s, r0, r1, r_bar, r_hat, e_bar, I), bracket=(0,upper)).root
 			assert not isinstance(result, complex)
 			return result
 		except:
-			upper -= 0.1
+			upper -= 0.05
 			if upper < 0:
 				return -1
 			else:
@@ -164,7 +164,7 @@ def simulate_lineage_wealth(w_init, r0, r1, r_bar, r_hat, e_bar, I, reps):
 			utility_no_project, s_no_project = no_project_best_utility(w, r_hat)
 			utility_project, s_project, beta = project_best_utility(w, r0, r1, r_bar, r_hat, e_bar, I)
 			# choose project
-			if utility_project > utility_no_project:
+			if beta != -1 and utility_project > utility_no_project:
 				max_wealth_project = max(w, max_wealth_project)
 				w = bequest_project(s_project, beta, random_vals[rep_idx], r_hat, r_bar, I)
 			# choose safe strategy
