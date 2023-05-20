@@ -1,4 +1,4 @@
-from model import *
+from model_banerjee import *
 import pickle
 
 from SALib.sample import latin
