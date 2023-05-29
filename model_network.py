@@ -12,8 +12,12 @@ from multiprocessing import Pool
 
 # Network Construction
 
-def build_graph(n=100, m=3, p=0.5):
-	G = nx.powerlaw_cluster_graph(n=n, m=m, p=p) 
+def build_graph(n, graph_type, graph_args):
+
+	if graph_type == "powerlaw_cluster":
+		G = nx.powerlaw_cluster_graph(n=n, **graph_args) 
+	elif graph_type == "random_regular_graph":
+		G = nx.random_regular_graph(n=n, **graph_args)
 	assert nx.is_connected(G)
 	return G
 
@@ -113,7 +117,8 @@ def optimize_utility(arg_tuple):
 # Simulation
 
 def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.1, DEFAULT_A=1.2, DEFAULT_GAMMA=2.1,
-			   PROJECT_COST=3.0, W0=0.8, W1=1.2, R0=0.3, R1=0.7, graph=None):
+			   PROJECT_COST=3.0, W0=0.8, W1=1.2, R0=0.3, R1=0.7, graph=None,
+			   graph_type="powerlaw_cluster", graph_args={"m":2, "p":0.5}):
 	"""
 	Runs ABM model.
 	Args:
@@ -127,6 +132,9 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.1, DEFAULT_A=1.2, DEFAULT
 		W1            : right bound for uniform random wealth initialization
 		R0            : left bound for uniform random risk initialization
 		R1            : right bound for uniform random risk initialization
+		graph 		  : NetworkX graph
+		graph_type    : type of graph to use
+		graph_args    : arguments for graph construction, specific to graph type passed
 	Returns:
 		WEALTH      : (STEPS, NUM_AGENTS) array containing wealth levels of agents at each iteration
 		communities : dict from community ID to list of members
@@ -134,7 +142,7 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.1, DEFAULT_A=1.2, DEFAULT
 	multiprocess = NUM_AGENTS >= 10000
 
 	# construct graph and adjacency matrix
-	G = graph or build_graph(n=NUM_AGENTS, m=2)
+	G = graph or build_graph(NUM_AGENTS, graph_type, graph_args)
 	adjacency = get_adjacency(G)
 	
 	# extract communities
