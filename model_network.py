@@ -282,9 +282,7 @@ def fit_generalized_gamma(data):
 	params = gengamma.fit(data)
 	return params
 
-
 #################################################################################################
-
 
 if __name__ == "__main__":
 
