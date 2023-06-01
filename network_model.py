@@ -11,6 +11,9 @@ from cptopt.optimizer import MeanVarianceFrontierOptimizer, ConvexConcaveOptimiz
 from cptopt.utility import CPTUtility
 
 
+import pickle
+
+
 #################################################################################################
 
 # Network Construction
@@ -217,7 +220,7 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.1, DEFAULT_A=1.2, DEFAULT
 								  AGENT_EXPECTED_RETURNS[i],
 								  DEFAULT_A,
 								  DEFAULT_GAMMA)).x[0]
-			project_contributions[community_membership[i]] += WEALTH[step][i](1-C[i])*ALLOC[i][:-1]
+			project_contributions[community_membership[i]] += WEALTH[step][i]*(1-C[i])*ALLOC[i][:-1]
 		  
 
 		# run projects
@@ -229,7 +232,7 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.1, DEFAULT_A=1.2, DEFAULT
 	
 		for i in range(NUM_AGENTS):
 			I = 1-C[i]
-			agent_returns = np.concatenate([np.array(risky_returns[community_membership[i]]), SAFE_RETURN])
+			agent_returns = np.concatenate([np.array(risky_returns[community_membership[i]]), [SAFE_RETURN]])
 			INCOME[step][i] = sum(WEALTH[step][i]*I*ALLOC[i]*agent_returns)
 			WEALTH[step+1][i]  = WEALTH[step][i] - WEALTH[step][i]*C[i] + INCOME[step][i]
 
@@ -299,4 +302,4 @@ if __name__ == "__main__":
 	STEPS	  	 = args.steps
 	PROJECT_COST = args.project_cost
 	
-	W, I, communities, risk, success = simulation(NUM_AGENTS=NUM_AGENTS, STEPS=STEPS, PROJECT_COST=PROJECT_COST)
+	W, I, communities, gamma_pos, success = simulation(NUM_AGENTS=NUM_AGENTS, STEPS=STEPS, PROJECT_COST=PROJECT_COST)
