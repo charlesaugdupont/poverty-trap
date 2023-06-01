@@ -7,11 +7,11 @@ from multiprocessing import Pool
 from scipy.stats import gengamma
 from scipy.optimize import minimize
 
-from cptopt.optimizer import MeanVarianceFrontierOptimizer, ConvexConcaveOptimizer
+from cptopt.optimizer import MeanVarianceFrontierOptimizer
 from cptopt.utility import CPTUtility
 
-
 import pickle
+import random
 
 
 #################################################################################################
@@ -46,7 +46,9 @@ def get_node_community_map(communities):
 	return node_community_map
 
 
-def get_community_membership(adjacency, node_community_map):
+def get_community_membership(G, communities):
+	adjacency = get_adjacency(G)
+	node_community_map = get_node_community_map(communities)
 	membership = {i:set() for i in node_community_map}
 	for i, neighbours in adjacency.items():
 		for n in neighbours:
@@ -63,9 +65,9 @@ def generate_gambles(N):
 	"""
 	Generate N gambles with 2 outcomes.
 	"""
-	probs     = np.random.uniform(0.2, 0.8, N)
-	outcomes1 = np.random.uniform(0.9, 0.95, N)
-	outcomes2 = np.random.uniform(2.0, 2.5, N)
+	probs     = np.random.uniform(0.30, 0.70, N)
+	outcomes1 = np.random.uniform(0.3, 1.0, N)
+	outcomes2 = np.random.uniform(1.5, 1.7, N)
 
 	gambles = []
 	for i in range(N):
@@ -118,9 +120,10 @@ def optimize_utility(arg_tuple):
 
 # Simulation
 
-def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.1, DEFAULT_A=1.2, DEFAULT_GAMMA=2.1,
+def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAULT_GAMMA=2.1,
 			   PROJECT_COST=3.0, W0=0.8, W1=1.2, GAMMA_POS_L=3, GAMMA_POS_R=9, graph=None,
-			   NUM_GAMBLE_SAMPLES=200000, graph_type="powerlaw_cluster", graph_args={"m":2, "p":0.5}):
+			   NUM_GAMBLE_SAMPLES=1000, graph_type="powerlaw_cluster", graph_args={"m":2, "p":0.5},
+			   seed=None):
 	"""
 	Runs ABM model.
 	Args:
@@ -142,19 +145,21 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.1, DEFAULT_A=1.2, DEFAULT
 		WEALTH      : (STEPS, NUM_AGENTS) array containing wealth levels of agents at each iteration
 		communities : dict from community ID to list of members
 	"""
+	if seed:
+		random.seed(seed)
+		np.random.seed(seed)
+
 	multiprocess = NUM_AGENTS >= 10000
 
 	# construct graph and adjacency matrix
 	G = graph or build_graph(NUM_AGENTS, graph_type, graph_args)
-	adjacency = get_adjacency(G)
-	
+
 	# extract communities
 	communities = get_communities(G)
 	print(f"{len(communities)} communities.")
-	
-	# get community membership of nodes
-	node_community_map = get_node_community_map(communities)
-	community_membership = get_community_membership(adjacency, node_community_map)
+
+	# get community membership of each agent
+	community_membership = get_community_membership(G, communities)
 	communities = {c:[] for c in range(len(communities))}
 	for i, comms in community_membership.items():
 		for c in comms:
@@ -166,20 +171,16 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.1, DEFAULT_A=1.2, DEFAULT
 	for i,g in enumerate(GAMBLES):
 		GAMBLE_SAMPLES[:,i] = np.random.choice(g["outcomes"], NUM_GAMBLE_SAMPLES, p=g["probs"]) - 1
 	GAMBLE_RETURNS = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in GAMBLES]])
-	gamble_success   = np.zeros((len(GAMBLES)))
-	gamble_averages  = np.zeros((len(GAMBLES)))
-	# compute expected value of each gamble
-	for i,g in enumerate(GAMBLES):
-		gamble_averages[i]  = np.average(g["outcomes"], weights=g["probs"])
-			
+	gamble_success = np.zeros((len(GAMBLES)))
+	gamble_averages = np.mean(GAMBLE_SAMPLES, axis=0)
+
 	# agent attributes
-	INCOME	  = np.zeros((STEPS, NUM_AGENTS))
-	WEALTH 	  = np.random.uniform(W0, W1, (STEPS+1, NUM_AGENTS))
+	C      = np.zeros((NUM_AGENTS))
+	INCOME = np.zeros((STEPS, NUM_AGENTS))
+	WEALTH = np.random.uniform(W0, W1, (STEPS+1, NUM_AGENTS))
 	GAMMA_POS = np.random.uniform(GAMMA_POS_L, GAMMA_POS_R, NUM_AGENTS)
 	UTILITIES = [CPTUtility(gamma_pos=GAMMA_POS[i], gamma_neg=10, delta_pos=0.77, delta_neg=0.79) for i in range(NUM_AGENTS)]
-	C      	  = np.zeros((NUM_AGENTS))
 	AGENT_GAMBLE_AVERAGES = [np.concatenate([gamble_averages[community_membership[i]], [SAFE_RETURN]]) for i in range(NUM_AGENTS)]
-	
 	ALLOC = []
 	AGENT_EXPECTED_RETURNS = []
 	# compute optimal portfolios for agents
@@ -192,6 +193,10 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.1, DEFAULT_A=1.2, DEFAULT
 		ALLOC.append(mv.weights)
 		# pre-compute expected returns - note: if the mean variance optimizer is re-run, this needs to be updated!
 		AGENT_EXPECTED_RETURNS.append(ALLOC[-1]*AGENT_GAMBLE_AVERAGES[i])
+	with open("cpt_data.pickle", "wb") as f:
+		pickle.dump({"alloc":ALLOC, 
+					 "agent_expected_returns":AGENT_EXPECTED_RETURNS,
+					 "gamma_pos":GAMMA_POS}, f)
 
 	# simulation
 	print("Performing time stepping...")
@@ -200,7 +205,6 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.1, DEFAULT_A=1.2, DEFAULT
 		project_contributions = np.zeros((len(GAMBLES)))
 
 		# all agents perform optimization step and we sum up project contributions
-
 		# if multiprocess:
 		# 	args = [(WEALTH[step][i], ALLOC[i], 
 		# 			gamble_averages[community_membership[i]],
@@ -221,22 +225,30 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.1, DEFAULT_A=1.2, DEFAULT
 								  DEFAULT_A,
 								  DEFAULT_GAMMA)).x[0]
 			project_contributions[community_membership[i]] += WEALTH[step][i]*(1-C[i])*ALLOC[i][:-1]
-		  
 
 		# run projects
-		risky_returns = np.zeros((len(GAMBLES)))
+		returns = np.zeros((len(GAMBLES)))
 		for idx in range(len(GAMBLES)):
 			if project_contributions[idx] >= PROJECT_COST:
-				risky_returns[idx] = GAMBLE_RETURNS[idx][step]
+				returns[idx] = GAMBLE_RETURNS[idx][step]
 				gamble_success[idx] += 1
-	
+
 		for i in range(NUM_AGENTS):
 			I = 1-C[i]
-			agent_returns = np.concatenate([np.array(risky_returns[community_membership[i]]), [SAFE_RETURN]])
-			INCOME[step][i] = sum(WEALTH[step][i]*I*ALLOC[i]*agent_returns)
-			WEALTH[step+1][i]  = WEALTH[step][i] - WEALTH[step][i]*C[i] + INCOME[step][i]
 
-	return WEALTH, INCOME, communities, GAMMA_POS, gamble_success
+			# approach 1?
+			invested_wealth = I*WEALTH[step][i]
+			safe_return  = invested_wealth * ALLOC[i][-1] * SAFE_RETURN
+			risky_return = sum(invested_wealth * ALLOC[i][:-1] * returns[community_membership[i]])
+			INCOME[step][i] = safe_return + risky_return
+			WEALTH[step+1][i] = WEALTH[step][i] - WEALTH[step][i]*C[i] + INCOME[step][i]
+
+			# approach 2?
+			INCOME[step][i] = sum(WEALTH[step][i]*I*ALLOC[i][:-1]*(returns[community_membership[i]]-1)) + \
+							  WEALTH[step][i]*I*ALLOC[i][-1]*SAFE_RETURN
+			WEALTH[step+1][i] = WEALTH[step][i] - WEALTH[step][i]*C[i] + INCOME[step][i]
+
+	return WEALTH, INCOME, communities, GAMMA_POS, gamble_success, ALLOC, C
 
 #################################################################################################
 
