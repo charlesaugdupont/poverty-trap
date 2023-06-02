@@ -67,7 +67,7 @@ def generate_gambles(N):
 	"""
 	probs     = np.random.uniform(0.30, 0.70, N)
 	outcomes1 = np.random.uniform(0.90, 0.95, N)
-	outcomes2 = np.random.uniform(1.30, 2.50, N)
+	outcomes2 = np.random.uniform(1.30, 1.40, N)
 
 	gambles = []
 	for i in range(N):
