@@ -66,8 +66,8 @@ def generate_gambles(N):
 	Generate N gambles with 2 outcomes.
 	"""
 	probs     = np.random.uniform(0.30, 0.70, N)
-	outcomes1 = np.random.uniform(0.3, 1.0, N)
-	outcomes2 = np.random.uniform(1.5, 1.7, N)
+	outcomes1 = np.random.uniform(0.90, 0.95, N)
+	outcomes2 = np.random.uniform(1.30, 1.70, N)
 
 	gambles = []
 	for i in range(N):
@@ -123,7 +123,7 @@ def optimize_utility(arg_tuple):
 def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAULT_GAMMA=2.1,
 			   PROJECT_COST=3.0, W0=0.8, W1=1.2, GAMMA_POS_L=3, GAMMA_POS_R=9, graph=None,
 			   NUM_GAMBLE_SAMPLES=1000, graph_type="powerlaw_cluster", graph_args={"m":2, "p":0.5},
-			   seed=None):
+			   seed=None, use_data=False):
 	"""
 	Runs ABM model.
 	Args:
@@ -173,6 +173,7 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 	GAMBLE_RETURNS = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in GAMBLES]])
 	gamble_success = np.zeros((len(GAMBLES)))
 	gamble_averages = np.mean(GAMBLE_SAMPLES, axis=0)
+	print(gamble_averages)
 
 	# agent attributes
 	C      = np.zeros((NUM_AGENTS))
@@ -183,20 +184,29 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 	AGENT_GAMBLE_AVERAGES = [np.concatenate([gamble_averages[community_membership[i]], [SAFE_RETURN]]) for i in range(NUM_AGENTS)]
 	ALLOC = []
 	AGENT_EXPECTED_RETURNS = []
-	# compute optimal portfolios for agents
-	print("Computing optimal portfolios...")
-	for i in tqdm(range(NUM_AGENTS)):
-		mv = MeanVarianceFrontierOptimizer(UTILITIES[i])
-		samples = GAMBLE_SAMPLES[:,community_membership[i]]
-		samples_with_safe_gamble = np.column_stack([samples, np.repeat(SAFE_RETURN-1, samples.shape[0])])
-		mv.optimize(samples_with_safe_gamble)
-		ALLOC.append(mv.weights)
-		# pre-compute expected returns - note: if the mean variance optimizer is re-run, this needs to be updated!
-		AGENT_EXPECTED_RETURNS.append(ALLOC[-1]*AGENT_GAMBLE_AVERAGES[i])
-	with open("cpt_data.pickle", "wb") as f:
-		pickle.dump({"alloc":ALLOC, 
-					 "agent_expected_returns":AGENT_EXPECTED_RETURNS,
-					 "gamma_pos":GAMMA_POS}, f)
+
+	if use_data:
+		print("Loading pre-computed optimal portfolios...")
+		with open("cpt_data.pickle", "rb") as f:
+			data = pickle.load(f)
+		ALLOC = data["alloc"]
+		AGENT_EXPECTED_RETURNS = data["agent_expected_returns"]
+		GAMMA_POS = data["gamma_pos"]
+	else:
+		# compute optimal portfolios for agents
+		print("Computing optimal portfolios...")
+		for i in tqdm(range(NUM_AGENTS)):
+			mv = MeanVarianceFrontierOptimizer(UTILITIES[i])
+			samples = GAMBLE_SAMPLES[:,community_membership[i]]
+			samples_with_safe_gamble = np.column_stack([samples, np.repeat(SAFE_RETURN-1, samples.shape[0])])
+			mv.optimize(samples_with_safe_gamble)
+			ALLOC.append(mv.weights)
+			# pre-compute expected returns - note: if the mean variance optimizer is re-run, this needs to be updated!
+			AGENT_EXPECTED_RETURNS.append(ALLOC[-1]*AGENT_GAMBLE_AVERAGES[i])
+		with open("cpt_data.pickle", "wb") as f:
+			pickle.dump({"alloc":ALLOC, 
+						"agent_expected_returns":AGENT_EXPECTED_RETURNS,
+						"gamma_pos":GAMMA_POS}, f)
 
 	# simulation
 	print("Performing time stepping...")
@@ -233,20 +243,18 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 				returns[idx] = GAMBLE_RETURNS[idx][step]
 				gamble_success[idx] += 1
 
+		# update agent wealth and income
 		for i in range(NUM_AGENTS):
+			# investment proportion
 			I = 1-C[i]
 
-			# approach 1?
-			invested_wealth = I*WEALTH[step][i]
-			safe_return  = invested_wealth * ALLOC[i][-1] * SAFE_RETURN
-			risky_return = sum(invested_wealth * ALLOC[i][:-1] * returns[community_membership[i]])
-			INCOME[step][i] = safe_return + risky_return
-			WEALTH[step+1][i] = WEALTH[step][i] - WEALTH[step][i]*C[i] + INCOME[step][i]
-
-			# approach 2?
-			INCOME[step][i] = sum(WEALTH[step][i]*I*ALLOC[i][:-1]*(returns[community_membership[i]]-1)) + \
-							  WEALTH[step][i]*I*ALLOC[i][-1]*SAFE_RETURN
-			WEALTH[step+1][i] = WEALTH[step][i] - WEALTH[step][i]*C[i] + INCOME[step][i]
+			# income from investments = sum of risky investment returns + safe investment return
+			risky_return = sum(WEALTH[step][i]*I*ALLOC[i][:-1]*(returns[community_membership[i]]-1))
+			safe_return  = WEALTH[step][i]*I*ALLOC[i][-1]*SAFE_RETURN
+			INCOME[step][i] = risky_return + safe_return
+			
+			# new wealth = current wealth - consumption + income from investments
+			WEALTH[step+1][i] = WEALTH[step][i] * (1 - C[i]) + INCOME[step][i]
 
 	return WEALTH, INCOME, communities, GAMMA_POS, gamble_success, ALLOC, C
 
