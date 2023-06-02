@@ -250,7 +250,7 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 
 			# income from investments = sum of risky investment returns + safe investment return
 			risky_return = sum(WEALTH[step][i]*I*ALLOC[i][:-1]*(returns[community_membership[i]]-1))
-			safe_return  = WEALTH[step][i]*I*ALLOC[i][-1]*SAFE_RETURN
+			safe_return  = WEALTH[step][i]*I*ALLOC[i][-1]*(SAFE_RETURN-1)
 			INCOME[step][i] = risky_return + safe_return
 			
 			# new wealth = current wealth - consumption + income from investments
