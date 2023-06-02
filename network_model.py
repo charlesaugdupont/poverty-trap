@@ -67,7 +67,7 @@ def generate_gambles(N):
 	"""
 	probs     = np.random.uniform(0.30, 0.70, N)
 	outcomes1 = np.random.uniform(0.90, 0.95, N)
-	outcomes2 = np.random.uniform(1.30, 1.70, N)
+	outcomes2 = np.random.uniform(1.30, 2.50, N)
 
 	gambles = []
 	for i in range(N):
@@ -176,14 +176,13 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 	print(gamble_averages)
 
 	# agent attributes
-	C      = np.zeros((NUM_AGENTS))
+	C      = np.zeros((STEPS, NUM_AGENTS))
 	INCOME = np.zeros((STEPS, NUM_AGENTS))
 	WEALTH = np.random.uniform(W0, W1, (STEPS+1, NUM_AGENTS))
 	GAMMA_POS = np.random.uniform(GAMMA_POS_L, GAMMA_POS_R, NUM_AGENTS)
 	UTILITIES = [CPTUtility(gamma_pos=GAMMA_POS[i], gamma_neg=10, delta_pos=0.77, delta_neg=0.79) for i in range(NUM_AGENTS)]
-	AGENT_GAMBLE_AVERAGES = [np.concatenate([gamble_averages[community_membership[i]], [SAFE_RETURN]]) for i in range(NUM_AGENTS)]
+	AGENT_EXPECTED_RETURNS = [np.concatenate([gamble_averages[community_membership[i]]+1, [SAFE_RETURN]]) for i in range(NUM_AGENTS)]
 	ALLOC = []
-	AGENT_EXPECTED_RETURNS = []
 
 	if use_data:
 		print("Loading pre-computed optimal portfolios...")
@@ -201,8 +200,6 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 			samples_with_safe_gamble = np.column_stack([samples, np.repeat(SAFE_RETURN-1, samples.shape[0])])
 			mv.optimize(samples_with_safe_gamble)
 			ALLOC.append(mv.weights)
-			# pre-compute expected returns - note: if the mean variance optimizer is re-run, this needs to be updated!
-			AGENT_EXPECTED_RETURNS.append(ALLOC[-1]*AGENT_GAMBLE_AVERAGES[i])
 		with open("cpt_data.pickle", "wb") as f:
 			pickle.dump({"alloc":ALLOC, 
 						"agent_expected_returns":AGENT_EXPECTED_RETURNS,
@@ -229,12 +226,12 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 
 		# serial approach (better than multiprocessing for O(10^3) agents, but worse for >= O(10^4))
 		for i in range(NUM_AGENTS):
-			C[i] = minimize(utility, x0=0.5, bounds=[(0.05, 0.95)], method='SLSQP',
+			C[step][i] = minimize(utility, x0=0.5, bounds=[(0.05, 0.95)], method='SLSQP',
 							args=(WEALTH[step][i],
 								  AGENT_EXPECTED_RETURNS[i],
 								  DEFAULT_A,
 								  DEFAULT_GAMMA)).x[0]
-			project_contributions[community_membership[i]] += WEALTH[step][i]*(1-C[i])*ALLOC[i][:-1]
+			project_contributions[community_membership[i]] += WEALTH[step][i]*(1-C[step][i])*ALLOC[i][:-1]
 
 		# run projects
 		returns = np.zeros((len(GAMBLES)))
@@ -246,15 +243,15 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 		# update agent wealth and income
 		for i in range(NUM_AGENTS):
 			# investment proportion
-			I = 1-C[i]
+			I = 1-C[step][i]
 
 			# income from investments = sum of risky investment returns + safe investment return
-			risky_return = sum(WEALTH[step][i]*I*ALLOC[i][:-1]*(returns[community_membership[i]]-1))
-			safe_return  = WEALTH[step][i]*I*ALLOC[i][-1]*(SAFE_RETURN-1)
+			risky_return = sum(WEALTH[step][i]*I*ALLOC[i][:-1]*(returns[community_membership[i]]))
+			safe_return  = WEALTH[step][i]*I*ALLOC[i][-1]*(SAFE_RETURN)
 			INCOME[step][i] = risky_return + safe_return
 			
 			# new wealth = current wealth - consumption + income from investments
-			WEALTH[step+1][i] = WEALTH[step][i] * (1 - C[i]) + INCOME[step][i]
+			WEALTH[step+1][i] = WEALTH[step][i] * (1-C[step][i]) + INCOME[step][i]
 
 	return WEALTH, INCOME, communities, GAMMA_POS, gamble_success, ALLOC, C
 
