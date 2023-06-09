@@ -1,9 +1,6 @@
-import argparse
 import numpy as np
-from tqdm import tqdm
 import networkx as nx
-from model_banerjee import U,V
-from multiprocessing import Pool
+# from multiprocessing import Pool
 from scipy.stats import gengamma
 from scipy.optimize import minimize
 
@@ -13,6 +10,22 @@ from cptopt.utility import CPTUtility
 import pickle
 import random
 
+
+#################################################################################################
+
+# UTILITY FUNCTIONS
+def U(x, gamma=2.1, A=1.2):
+	"""
+	Utility function for consumption of agent.
+	"""
+	return A*x**(1-gamma) / (1-gamma)
+
+
+def V(x, gamma=2.1):
+	"""
+	Utility function for bequest of agent to offspring.
+	"""
+	return x**(1-gamma) / (1-gamma)
 
 #################################################################################################
 
@@ -61,13 +74,13 @@ def get_community_membership(G, communities):
 
 # Gambles
 
-def generate_gambles(N):
+def generate_gambles(N, left, right):
 	"""
 	Generate N gambles with 2 outcomes.
 	"""
 	probs     = np.random.uniform(0.30, 0.70, N)
 	outcomes1 = np.random.uniform(0.90, 0.95, N)
-	outcomes2 = np.random.uniform(1.30, 1.40, N)
+	outcomes2 = np.random.uniform(left, right, N)
 
 	gambles = []
 	for i in range(N):
@@ -121,9 +134,9 @@ def optimize_utility(arg_tuple):
 # Simulation
 
 def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAULT_GAMMA=2.1,
-			   PROJECT_COST=3.0, W0=0.8, W1=1.2, GAMMA_POS_L=3, GAMMA_POS_R=9, graph=None,
+			   PROJECT_COST=3.0, W0=0.8, W1=1.2, DELTA_POS_L=0.5, DELTA_POS_R=0.78, graph=None,
 			   NUM_GAMBLE_SAMPLES=1000, graph_type="powerlaw_cluster", graph_args={"m":2, "p":0.5},
-			   seed=None, use_data=False):
+			   RL=1.2, RR=1.5, GAMMA_POS_L=3, GAMMA_POS_R=9, seed=None, use_data=False):
 	"""
 	Runs ABM model.
 	Args:
@@ -166,21 +179,21 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 			communities[c].append(i)
 
 	# global attributes
-	GAMBLES = generate_gambles(len(communities))
+	GAMBLES = generate_gambles(len(communities), left=RL, right=RR)
 	GAMBLE_SAMPLES = np.zeros((NUM_GAMBLE_SAMPLES, len(GAMBLES)))
 	for i,g in enumerate(GAMBLES):
 		GAMBLE_SAMPLES[:,i] = np.random.choice(g["outcomes"], NUM_GAMBLE_SAMPLES, p=g["probs"]) - 1
 	GAMBLE_RETURNS = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in GAMBLES]])
 	gamble_success = np.zeros((len(GAMBLES)))
 	gamble_averages = np.mean(GAMBLE_SAMPLES, axis=0)
-	print(gamble_averages)
 
 	# agent attributes
 	C      = np.zeros((STEPS, NUM_AGENTS))
 	INCOME = np.zeros((STEPS, NUM_AGENTS))
 	WEALTH = np.random.uniform(W0, W1, (STEPS+1, NUM_AGENTS))
+	DELTA_POS = np.random.uniform(DELTA_POS_L, DELTA_POS_R, NUM_AGENTS)
 	GAMMA_POS = np.random.uniform(GAMMA_POS_L, GAMMA_POS_R, NUM_AGENTS)
-	UTILITIES = [CPTUtility(gamma_pos=GAMMA_POS[i], gamma_neg=10, delta_pos=0.77, delta_neg=0.79) for i in range(NUM_AGENTS)]
+	UTILITIES = [CPTUtility(gamma_pos=GAMMA_POS[i], gamma_neg=11.4, delta_pos=DELTA_POS[i], delta_neg=0.79) for i in range(NUM_AGENTS)]
 	AGENT_EXPECTED_RETURNS = [np.concatenate([gamble_averages[community_membership[i]]+1, [SAFE_RETURN]]) for i in range(NUM_AGENTS)]
 	ALLOC = []
 
@@ -190,39 +203,35 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 			data = pickle.load(f)
 		ALLOC = data["alloc"]
 		AGENT_EXPECTED_RETURNS = data["agent_expected_returns"]
-		GAMMA_POS = data["gamma_pos"]
+		DELTA_POS = data["delta_pos"]
 	else:
 		# compute optimal portfolios for agents
 		print("Computing optimal portfolios...")
-		for i in tqdm(range(NUM_AGENTS)):
+		for i in range(NUM_AGENTS):
 			mv = MeanVarianceFrontierOptimizer(UTILITIES[i])
 			samples = GAMBLE_SAMPLES[:,community_membership[i]]
 			samples_with_safe_gamble = np.column_stack([samples, np.repeat(SAFE_RETURN-1, samples.shape[0])])
 			mv.optimize(samples_with_safe_gamble)
 			ALLOC.append(mv.weights)
-		with open("cpt_data.pickle", "wb") as f:
-			pickle.dump({"alloc":ALLOC, 
-						"agent_expected_returns":AGENT_EXPECTED_RETURNS,
-						"gamma_pos":GAMMA_POS}, f)
+		# with open("cpt_data.pickle", "wb") as f:
+		# 	pickle.dump({"alloc":ALLOC, 
+		# 				"agent_expected_returns":AGENT_EXPECTED_RETURNS,
+		# 				"delta_pos":DELTA_POS}, f)
 
 	# simulation
 	print("Performing time stepping...")
-	for step in tqdm(range(STEPS)):
+	for step in range(STEPS):
 
 		project_contributions = np.zeros((len(GAMBLES)))
 
 		# all agents perform optimization step and we sum up project contributions
-		# if multiprocess:
-		# 	args = [(WEALTH[step][i], ALLOC[i], 
-		# 			gamble_averages[community_membership[i]],
-		# 			RISK[i], DEFAULT_A, DEFAULT_GAMMA, SAFE_RETURN)
-		# 			for i in range(NUM_AGENTS)]
-		# 	with Pool() as pool:
-		# 		results = pool.map(optimize_utility, args)
-		# 	C = np.array(results)
-		# 	for i in range(NUM_AGENTS):
-		# 		project_contributions[community_membership[i]] += \
-		# 							np.sum(WEALTH[step][i]*ALLOC[i]*RISK[i]*(1-C[i]))  
+		if multiprocess:
+			args = [(WEALTH[step][i], AGENT_EXPECTED_RETURNS[i], DEFAULT_A, DEFAULT_GAMMA, SAFE_RETURN) for i in range(NUM_AGENTS)]
+			with Pool() as pool:
+				results = pool.map(optimize_utility, args)
+			C = np.array(results)
+			for i in range(NUM_AGENTS):
+				project_contributions[community_membership[i]] += WEALTH[step][i]*(1-C[step][i])*ALLOC[i][:-1]
 
 		# serial approach (better than multiprocessing for O(10^3) agents, but worse for >= O(10^4))
 		for i in range(NUM_AGENTS):
@@ -253,7 +262,7 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 			# new wealth = current wealth - consumption + income from investments
 			WEALTH[step+1][i] = WEALTH[step][i] * (1-C[step][i]) + INCOME[step][i]
 
-	return WEALTH, INCOME, communities, GAMMA_POS, gamble_success, ALLOC, C
+	return WEALTH, INCOME, communities, DELTA_POS, GAMMA_POS, gamble_success, ALLOC, C
 
 #################################################################################################
 
@@ -306,17 +315,17 @@ def fit_generalized_gamma(data):
 
 #################################################################################################
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-	# parse command-line arguments
-	parser = argparse.ArgumentParser(description="Run ABM simulation.")
-	parser.add_argument("--agents", help="Number of agents", default=1000, type=int)
-	parser.add_argument("--steps", help="Number of steps", default=100, type=int)
-	parser.add_argument("--project-cost", help="Cost of starting a project", default=0.5, type=float)
-	args = parser.parse_args()
+# 	# parse command-line arguments
+# 	parser = argparse.ArgumentParser(description="Run ABM simulation.")
+# 	parser.add_argument("--agents", help="Number of agents", default=1000, type=int)
+# 	parser.add_argument("--steps", help="Number of steps", default=100, type=int)
+# 	parser.add_argument("--project-cost", help="Cost of starting a project", default=0.5, type=float)
+# 	args = parser.parse_args()
 
-	NUM_AGENTS   = args.agents
-	STEPS	  	 = args.steps
-	PROJECT_COST = args.project_cost
+# 	NUM_AGENTS   = args.agents
+# 	STEPS	  	 = args.steps
+# 	PROJECT_COST = args.project_cost
 	
-	W, I, communities, gamma_pos, success = simulation(NUM_AGENTS=NUM_AGENTS, STEPS=STEPS, PROJECT_COST=PROJECT_COST)
+# 	W, I, communities, gamma_pos, success = simulation(NUM_AGENTS=NUM_AGENTS, STEPS=STEPS, PROJECT_COST=PROJECT_COST)
