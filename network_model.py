@@ -1,6 +1,5 @@
 import numpy as np
 import networkx as nx
-# from multiprocessing import Pool
 from scipy.stats import gengamma
 from scipy.optimize import minimize
 
@@ -120,15 +119,6 @@ def utility(x, w, investment_returns, A, gamma):
 	return - (consumption_utility + project_utility)
 
 
-def optimize_utility(arg_tuple):
-	# unpack tuple
-	wealth, allocation, gamble_averages, risk, DEFAULT_A, DEFAULT_GAMMA, SAFE_RETURN = arg_tuple
-
-	# run minimization
-	res = minimize(utility, x0=0.5, bounds=[(0.05, 0.95)], method='SLSQP', 
-				   args=(wealth, allocation, gamble_averages, risk, DEFAULT_A, DEFAULT_GAMMA, SAFE_RETURN))
-	return res.x[0]
-
 #################################################################################################
 
 # Simulation
@@ -162,8 +152,6 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 		random.seed(seed)
 		np.random.seed(seed)
 
-	multiprocess = NUM_AGENTS >= 10000
-
 	# construct graph and adjacency matrix
 	G = graph or build_graph(NUM_AGENTS, graph_type, graph_args)
 
@@ -190,9 +178,10 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 	# agent attributes
 	C      = np.zeros((STEPS, NUM_AGENTS))
 	INCOME = np.zeros((STEPS, NUM_AGENTS))
-	WEALTH = np.random.uniform(W0, W1, (STEPS+1, NUM_AGENTS))
-	DELTA_POS = np.random.uniform(DELTA_POS_L, DELTA_POS_R, NUM_AGENTS)
-	GAMMA_POS = np.random.uniform(GAMMA_POS_L, GAMMA_POS_R, NUM_AGENTS)
+	WEALTH = np.random.uniform(W0, W1, size=(STEPS+1, NUM_AGENTS))
+	ATTENTION = np.random.uniform(0.2, 0.8, size=NUM_AGENTS)
+	DELTA_POS = np.random.uniform(DELTA_POS_L, DELTA_POS_R, size=NUM_AGENTS)
+	GAMMA_POS = np.random.uniform(GAMMA_POS_L, GAMMA_POS_R, size=NUM_AGENTS)
 	UTILITIES = [CPTUtility(gamma_pos=GAMMA_POS[i], gamma_neg=11.4, delta_pos=DELTA_POS[i], delta_neg=0.79) for i in range(NUM_AGENTS)]
 	AGENT_EXPECTED_RETURNS = [np.concatenate([gamble_averages[community_membership[i]]+1, [SAFE_RETURN]]) for i in range(NUM_AGENTS)]
 	ALLOC = []
@@ -213,25 +202,12 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 			samples_with_safe_gamble = np.column_stack([samples, np.repeat(SAFE_RETURN-1, samples.shape[0])])
 			mv.optimize(samples_with_safe_gamble)
 			ALLOC.append(mv.weights)
-		# with open("cpt_data.pickle", "wb") as f:
-		# 	pickle.dump({"alloc":ALLOC, 
-		# 				"agent_expected_returns":AGENT_EXPECTED_RETURNS,
-		# 				"delta_pos":DELTA_POS}, f)
 
 	# simulation
 	print("Performing time stepping...")
 	for step in range(STEPS):
 
 		project_contributions = np.zeros((len(GAMBLES)))
-
-		# all agents perform optimization step and we sum up project contributions
-		if multiprocess:
-			args = [(WEALTH[step][i], AGENT_EXPECTED_RETURNS[i], DEFAULT_A, DEFAULT_GAMMA, SAFE_RETURN) for i in range(NUM_AGENTS)]
-			with Pool() as pool:
-				results = pool.map(optimize_utility, args)
-			C = np.array(results)
-			for i in range(NUM_AGENTS):
-				project_contributions[community_membership[i]] += WEALTH[step][i]*(1-C[step][i])*ALLOC[i][:-1]
 
 		# serial approach (better than multiprocessing for O(10^3) agents, but worse for >= O(10^4))
 		for i in range(NUM_AGENTS):
@@ -307,25 +283,3 @@ def get_community_income(I, communities):
 
 def get_community_wealth(W, communities):
 	return [np.mean(W[-1][communities[c]]) for c in communities]
-
-
-def fit_generalized_gamma(data):
-	params = gengamma.fit(data)
-	return params
-
-#################################################################################################
-
-# if __name__ == "__main__":
-
-# 	# parse command-line arguments
-# 	parser = argparse.ArgumentParser(description="Run ABM simulation.")
-# 	parser.add_argument("--agents", help="Number of agents", default=1000, type=int)
-# 	parser.add_argument("--steps", help="Number of steps", default=100, type=int)
-# 	parser.add_argument("--project-cost", help="Cost of starting a project", default=0.5, type=float)
-# 	args = parser.parse_args()
-
-# 	NUM_AGENTS   = args.agents
-# 	STEPS	  	 = args.steps
-# 	PROJECT_COST = args.project_cost
-	
-# 	W, I, communities, gamma_pos, success = simulation(NUM_AGENTS=NUM_AGENTS, STEPS=STEPS, PROJECT_COST=PROJECT_COST)
