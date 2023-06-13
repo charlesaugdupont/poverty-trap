@@ -1,6 +1,5 @@
 import numpy as np
 import networkx as nx
-from scipy.stats import gengamma
 from scipy.optimize import minimize
 
 from cptopt.optimizer import MeanVarianceFrontierOptimizer
@@ -8,6 +7,7 @@ from cptopt.utility import CPTUtility
 
 import pickle
 import random
+import keras
 
 
 #################################################################################################
@@ -66,7 +66,7 @@ def get_community_membership(G, communities):
 		for n in neighbours:
 			membership[i].add(node_community_map[n])
 		membership[i].add(node_community_map[i])
-	membership = {k:np.array(list(v)) for k,v in membership.items()}
+	membership = {k:np.array(list(v)+[len(communities)]) for k,v in membership.items()}
 	return membership
 
 #################################################################################################
@@ -110,13 +110,7 @@ def utility(x, w, investment_returns, A, gamma):
 	Returns:
 		utility
 	"""
-	# utility from consumption
-	consumption_utility = U(w*x, A=A, gamma=gamma)
-
-	# expected utility from projects
-	project_utility = V(sum(w*(1-x)*investment_returns))
-	
-	return - (consumption_utility + project_utility)
+	return - (U(w*x, A=A, gamma=gamma) + V(sum(w*(1-x)*investment_returns)))
 
 
 #################################################################################################
@@ -148,6 +142,9 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 		WEALTH      : (STEPS, NUM_AGENTS) array containing wealth levels of agents at each iteration
 		communities : dict from community ID to list of members
 	"""
+
+	response_surface_model = keras.models.load_model('./response_surface.mdl')
+
 	if seed:
 		random.seed(seed)
 		np.random.seed(seed)
@@ -161,19 +158,20 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 
 	# get community membership of each agent
 	community_membership = get_community_membership(G, communities)
-	communities = {c:[] for c in range(len(communities))}
-	for i, comms in community_membership.items():
-		for c in comms:
-			communities[c].append(i)
+	# communities = {c:[] for c in range(len(communities)+1)}
+	# for i, comms in community_membership.items():
+	# 	for c in comms:
+	# 		communities[c].append(i)
 
 	# global attributes
 	GAMBLES = generate_gambles(len(communities), left=RL, right=RR)
+	GAMBLES.append({"outcomes":[SAFE_RETURN, 0.0], "probs":[1.0, 0.0]})
 	GAMBLE_SAMPLES = np.zeros((NUM_GAMBLE_SAMPLES, len(GAMBLES)))
 	for i,g in enumerate(GAMBLES):
 		GAMBLE_SAMPLES[:,i] = np.random.choice(g["outcomes"], NUM_GAMBLE_SAMPLES, p=g["probs"]) - 1
+	GAMBLES_MU = np.mean(GAMBLE_SAMPLES, axis=0)
 	GAMBLE_RETURNS = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in GAMBLES]])
-	gamble_success = np.zeros((len(GAMBLES)))
-	gamble_averages = np.mean(GAMBLE_SAMPLES, axis=0)
+	GAMBLE_SUCCESS = np.zeros((len(GAMBLES)))
 
 	# agent attributes
 	C      = np.zeros((STEPS, NUM_AGENTS))
@@ -183,8 +181,8 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 	DELTA_POS = np.random.uniform(DELTA_POS_L, DELTA_POS_R, size=NUM_AGENTS)
 	GAMMA_POS = np.random.uniform(GAMMA_POS_L, GAMMA_POS_R, size=NUM_AGENTS)
 	UTILITIES = [CPTUtility(gamma_pos=GAMMA_POS[i], gamma_neg=11.4, delta_pos=DELTA_POS[i], delta_neg=0.79) for i in range(NUM_AGENTS)]
-	AGENT_EXPECTED_RETURNS = [np.concatenate([gamble_averages[community_membership[i]]+1, [SAFE_RETURN]]) for i in range(NUM_AGENTS)]
-	ALLOC = []
+	AGENT_EXPECTED_RETURNS = [GAMBLES_MU[community_membership[i]]+1 for i in range(NUM_AGENTS)]
+	ALLOC = np.zeros((NUM_AGENTS, len(communities)+1))
 
 	if use_data:
 		print("Loading pre-computed optimal portfolios...")
@@ -198,35 +196,36 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 		print("Computing optimal portfolios...")
 		for i in range(NUM_AGENTS):
 			mv = MeanVarianceFrontierOptimizer(UTILITIES[i])
-			samples = GAMBLE_SAMPLES[:,community_membership[i]]
-			samples_with_safe_gamble = np.column_stack([samples, np.repeat(SAFE_RETURN-1, samples.shape[0])])
-			mv.optimize(samples_with_safe_gamble)
-			ALLOC.append(mv.weights)
+			mv.optimize(GAMBLE_SAMPLES[:,community_membership[i]])
+			ALLOC[i][community_membership[i]] = mv.weights
 
 	# simulation
 	print("Performing time stepping...")
 	for step in range(STEPS):
 
-		project_contributions = np.zeros((len(GAMBLES)))
+		# agents choose consumption, and we compute contributions to each project
+		stack = np.row_stack([[WEALTH[step][i], 
+			 				   sum(AGENT_EXPECTED_RETURNS[i]), 
+			 				   DEFAULT_A, 
+							   DEFAULT_GAMMA] for i in range(NUM_AGENTS)]).reshape(NUM_AGENTS,4)
 
-		# serial approach (better than multiprocessing for O(10^3) agents, but worse for >= O(10^4))
-		for i in range(NUM_AGENTS):
-			C[step][i] = minimize(utility, x0=0.5, bounds=[(0.05, 0.95)], method='SLSQP',
-							args=(WEALTH[step][i],
-								  AGENT_EXPECTED_RETURNS[i],
-								  DEFAULT_A,
-								  DEFAULT_GAMMA)).x[0]
-			project_contributions[community_membership[i]] += WEALTH[step][i]*(1-C[step][i])*ALLOC[i][:-1]
+		C[step] = response_surface_model.predict(stack).reshape(-1,)
+		project_contributions = WEALTH[step] * (1-C[step]) @ ALLOC
 
 		# get gamble returns
-		returns = (project_contributions >= PROJECT_COST) * GAMBLE_RETURNS[:,step]
-
+		successful_gambles = project_contributions >= PROJECT_COST
+		GAMBLE_SUCCESS += successful_gambles
+		returns = successful_gambles * GAMBLE_RETURNS[:,step]
+		
 		# update agent wealth and income
 		for i in range(NUM_AGENTS):
 			# investment proportion
-			I = 1-C[step][i]
+			I = 1-C[step]
 
 			# income from investments = sum of risky investment returns + safe investment return
+
+			WEALTH[step] * I 
+
 			risky_return = sum(WEALTH[step][i]*I*ALLOC[i][:-1]*(returns[community_membership[i]]))
 			safe_return  = WEALTH[step][i]*I*ALLOC[i][-1]*(SAFE_RETURN)
 			INCOME[step][i] = risky_return + safe_return
@@ -234,7 +233,7 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 			# new wealth = current wealth - consumption + income from investments
 			WEALTH[step+1][i] = WEALTH[step][i] * (1-C[step][i]) + INCOME[step][i]
 
-	return WEALTH, INCOME, communities, DELTA_POS, GAMMA_POS, gamble_success, ALLOC, C
+	return WEALTH, INCOME, communities, DELTA_POS, GAMMA_POS, GAMBLE_SUCCESS, ALLOC, C
 
 #################################################################################################
 
