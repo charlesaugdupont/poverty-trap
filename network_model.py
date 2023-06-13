@@ -218,12 +218,8 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 								  DEFAULT_GAMMA)).x[0]
 			project_contributions[community_membership[i]] += WEALTH[step][i]*(1-C[step][i])*ALLOC[i][:-1]
 
-		# run projects
-		returns = np.zeros((len(GAMBLES)))
-		for idx in range(len(GAMBLES)):
-			if project_contributions[idx] >= PROJECT_COST:
-				returns[idx] = GAMBLE_RETURNS[idx][step]
-				gamble_success[idx] += 1
+		# get gamble returns
+		returns = (project_contributions >= PROJECT_COST) * GAMBLE_RETURNS[:,step]
 
 		# update agent wealth and income
 		for i in range(NUM_AGENTS):
