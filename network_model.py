@@ -1,13 +1,13 @@
 import numpy as np
 import networkx as nx
-from scipy.optimize import minimize
 
 from cptopt.optimizer import MeanVarianceFrontierOptimizer
 from cptopt.utility import CPTUtility
 
-import pickle
 import random
-import keras
+import pickle
+
+from tqdm import tqdm
 
 
 #################################################################################################
@@ -117,10 +117,10 @@ def utility(x, w, investment_returns, A, gamma):
 
 # Simulation
 
-def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAULT_GAMMA=2.1,
+def simulation(NUM_AGENTS=1000, STEPS=100, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAULT_GAMMA=2.1,
 			   PROJECT_COST=3.0, W0=0.8, W1=1.2, DELTA_POS_L=0.5, DELTA_POS_R=0.78, graph=None,
 			   NUM_GAMBLE_SAMPLES=1000, graph_type="powerlaw_cluster", graph_args={"m":2, "p":0.5},
-			   RL=1.2, RR=1.5, GAMMA_POS_L=3, GAMMA_POS_R=9, seed=None, use_data=False):
+			   RL=1.2, RR=1.5, GAMMA_POS_L=3, GAMMA_POS_R=9, seed=None):
 	"""
 	Runs ABM model.
 	Args:
@@ -143,7 +143,8 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 		communities : dict from community ID to list of members
 	"""
 
-	response_surface_model = keras.models.load_model('./response_surface.mdl')
+	with open("rfr.pickle", "rb") as f:
+		response_surface_model = pickle.load(f)
 
 	if seed:
 		random.seed(seed)
@@ -166,74 +167,66 @@ def simulation(NUM_AGENTS=500, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAUL
 	# global attributes
 	GAMBLES = generate_gambles(len(communities), left=RL, right=RR)
 	GAMBLES.append({"outcomes":[SAFE_RETURN, 0.0], "probs":[1.0, 0.0]})
-	GAMBLE_SAMPLES = np.zeros((NUM_GAMBLE_SAMPLES, len(GAMBLES)))
+	GAMBLE_PRIOR_SAMPLES = np.zeros((NUM_GAMBLE_SAMPLES, len(GAMBLES)))
 	for i,g in enumerate(GAMBLES):
-		GAMBLE_SAMPLES[:,i] = np.random.choice(g["outcomes"], NUM_GAMBLE_SAMPLES, p=g["probs"]) - 1
-	GAMBLES_MU = np.mean(GAMBLE_SAMPLES, axis=0)
-	GAMBLE_RETURNS = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in GAMBLES]])
+		GAMBLE_PRIOR_SAMPLES[:,i] = np.random.choice(g["outcomes"], NUM_GAMBLE_SAMPLES, p=g["probs"]) - 1
+	GAMBLES_MU = np.mean(GAMBLE_PRIOR_SAMPLES, axis=0)
+	GAMBLE_RANDOM_RETURNS = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in GAMBLES]])
 	GAMBLE_SUCCESS = np.zeros((len(GAMBLES)))
 
 	# agent attributes
 	C      = np.zeros((STEPS, NUM_AGENTS))
 	INCOME = np.zeros((STEPS, NUM_AGENTS))
 	WEALTH = np.random.uniform(W0, W1, size=(STEPS+1, NUM_AGENTS))
-	ATTENTION = np.random.uniform(0.2, 0.8, size=NUM_AGENTS)
+	ATTENTION = np.random.uniform(0.1, 0.9, size=NUM_AGENTS)
 	DELTA_POS = np.random.uniform(DELTA_POS_L, DELTA_POS_R, size=NUM_AGENTS)
 	GAMMA_POS = np.random.uniform(GAMMA_POS_L, GAMMA_POS_R, size=NUM_AGENTS)
 	UTILITIES = [CPTUtility(gamma_pos=GAMMA_POS[i], gamma_neg=11.4, delta_pos=DELTA_POS[i], delta_neg=0.79) for i in range(NUM_AGENTS)]
+	OPTIMIZERS = [MeanVarianceFrontierOptimizer(UTILITIES[i]) for i in range(NUM_AGENTS)]
 	AGENT_EXPECTED_RETURNS = [GAMBLES_MU[community_membership[i]]+1 for i in range(NUM_AGENTS)]
-	ALLOC = np.zeros((NUM_AGENTS, len(communities)+1))
 
-	if use_data:
-		print("Loading pre-computed optimal portfolios...")
-		with open("cpt_data.pickle", "rb") as f:
-			data = pickle.load(f)
-		ALLOC = data["alloc"]
-		AGENT_EXPECTED_RETURNS = data["agent_expected_returns"]
-		DELTA_POS = data["delta_pos"]
-	else:
-		# compute optimal portfolios for agents
-		print("Computing optimal portfolios...")
-		for i in range(NUM_AGENTS):
-			mv = MeanVarianceFrontierOptimizer(UTILITIES[i])
-			mv.optimize(GAMBLE_SAMPLES[:,community_membership[i]])
-			ALLOC[i][community_membership[i]] = mv.weights
+	# compute optimal portfolios for agents
+	print("Computing optimal portfolios...")
+	PORTFOLIO = compute_optimal_portfolios(NUM_AGENTS, len(communities)+1, OPTIMIZERS, GAMBLE_PRIOR_SAMPLES, community_membership)
 
 	# simulation
 	print("Performing time stepping...")
-	for step in range(STEPS):
+	for step in tqdm(range(STEPS)):
+
+		# recompute portfolios every 10 steps with attention weighting
+		if step > 0 and (step) % 20 == 0:
+			print(f"Updating portfolios... (step = {step})")
+			NEW_PORTFOLIO = compute_optimal_portfolios(NUM_AGENTS, len(communities)+1, OPTIMIZERS, GAMBLE_RANDOM_RETURNS[:,:step].T - 1, community_membership)
+			PORTFOLIO = np.multiply((1-ATTENTION)[:,np.newaxis], PORTFOLIO) + np.multiply(ATTENTION[:,np.newaxis], NEW_PORTFOLIO)
 
 		# agents choose consumption, and we compute contributions to each project
-		stack = np.row_stack([[WEALTH[step][i], 
-			 				   sum(AGENT_EXPECTED_RETURNS[i]), 
-			 				   DEFAULT_A, 
-							   DEFAULT_GAMMA] for i in range(NUM_AGENTS)]).reshape(NUM_AGENTS,4)
-
-		C[step] = response_surface_model.predict(stack).reshape(-1,)
-		project_contributions = WEALTH[step] * (1-C[step]) @ ALLOC
+		stack = np.row_stack([[WEALTH[step][i], sum(AGENT_EXPECTED_RETURNS[i]), DEFAULT_A, DEFAULT_GAMMA] for i in range(NUM_AGENTS)]).reshape(NUM_AGENTS,4)
+		C[step] = response_surface_model.predict(stack)
+		project_contributions = WEALTH[step] * (1-C[step]) @ PORTFOLIO
 
 		# get gamble returns
 		successful_gambles = project_contributions >= PROJECT_COST
 		GAMBLE_SUCCESS += successful_gambles
-		returns = successful_gambles * GAMBLE_RETURNS[:,step]
-		
+		returns = successful_gambles * GAMBLE_RANDOM_RETURNS[:,step]
+
 		# update agent wealth and income
-		for i in range(NUM_AGENTS):
-			# investment proportion
-			I = 1-C[step]
+		invested_wealth = WEALTH[step] * (1-C[step])
+		INCOME[step] = np.multiply(invested_wealth[:,np.newaxis], PORTFOLIO) @ returns
+		WEALTH[step+1] = invested_wealth + INCOME[step]
 
-			# income from investments = sum of risky investment returns + safe investment return
+	return WEALTH, INCOME, communities, DELTA_POS, GAMMA_POS, GAMBLE_SUCCESS, PORTFOLIO, C
 
-			WEALTH[step] * I 
 
-			risky_return = sum(WEALTH[step][i]*I*ALLOC[i][:-1]*(returns[community_membership[i]]))
-			safe_return  = WEALTH[step][i]*I*ALLOC[i][-1]*(SAFE_RETURN)
-			INCOME[step][i] = risky_return + safe_return
-			
-			# new wealth = current wealth - consumption + income from investments
-			WEALTH[step+1][i] = WEALTH[step][i] * (1-C[step][i]) + INCOME[step][i]
-
-	return WEALTH, INCOME, communities, DELTA_POS, GAMMA_POS, GAMBLE_SUCCESS, ALLOC, C
+def compute_optimal_portfolios(NUM_AGENTS, num_projects, OPTIMIZERS, SAMPLES, community_membership):
+	PORTFOLIO = np.zeros((NUM_AGENTS, num_projects))
+	for i in range(len(OPTIMIZERS)):
+		mv = OPTIMIZERS[i]
+		try:
+			mv.optimize(SAMPLES[:,community_membership[i]])
+		except:
+			import IPython; IPython.embed()
+		PORTFOLIO[i][community_membership[i]] = mv.weights
+	return PORTFOLIO
 
 #################################################################################################
 
