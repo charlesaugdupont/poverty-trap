@@ -197,7 +197,11 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAU
 		# recompute portfolios every 10 steps with attention weighting
 		if step > 0 and (step) % 10 == 0:
 			print(f"Updating portfolios... (step = {step})")
-			NEW_PORTFOLIO = compute_optimal_portfolios(NUM_AGENTS, len(communities)+1, OPTIMIZERS, GAMBLE_OBSERVED_SAMPLES[:step,:] - 1, community_membership)
+			NEW_PORTFOLIO = compute_optimal_portfolios(NUM_AGENTS, 
+					      							   len(communities)+1, 
+													   OPTIMIZERS, 
+													   GAMBLE_OBSERVED_SAMPLES[:step,:] - 1, 
+													   community_membership)
 			PORTFOLIO = np.multiply((1-ATTENTION)[:,np.newaxis], PORTFOLIO) + np.multiply(ATTENTION[:,np.newaxis], NEW_PORTFOLIO)
 
 		# agents choose consumption, and we compute contributions to each project
@@ -216,7 +220,7 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAU
 		INCOME[step] = np.multiply(invested_wealth[:,np.newaxis], PORTFOLIO) @ returns
 		WEALTH[step+1] = invested_wealth + INCOME[step]
 
-	return WEALTH, INCOME, communities, DELTA_POS, GAMMA_POS, GAMBLE_SUCCESS, PORTFOLIO, C
+	return WEALTH, INCOME, communities, DELTA_POS, GAMMA_POS, GAMBLE_SUCCESS, PORTFOLIO, C, ATTENTION
 
 
 def compute_optimal_portfolios(NUM_AGENTS, num_projects, OPTIMIZERS, SAMPLES, community_membership):
