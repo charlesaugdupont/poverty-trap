@@ -1,8 +1,8 @@
 import numpy as np
 import networkx as nx
 
-from cptopt.optimizer import MeanVarianceFrontierOptimizer
-from cptopt.utility import CPTUtility
+from cpt_optimizer import MeanVarianceFrontierOptimizer
+from cpt_utility import CPTUtility
 
 import random
 import pickle
