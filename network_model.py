@@ -117,7 +117,7 @@ def utility(x, w, investment_returns, A, gamma):
 
 # Simulation
 
-def simulation(NUM_AGENTS=1000, STEPS=100, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAULT_GAMMA=2.1,
+def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAULT_GAMMA=2.1,
 			   PROJECT_COST=3.0, W0=0.8, W1=1.2, DELTA_POS_L=0.5, DELTA_POS_R=0.78, graph=None,
 			   NUM_GAMBLE_SAMPLES=1000, graph_type="powerlaw_cluster", graph_args={"m":2, "p":0.5},
 			   RL=1.2, RR=1.5, GAMMA_POS_L=3, GAMMA_POS_R=9, seed=None):
@@ -170,6 +170,7 @@ def simulation(NUM_AGENTS=1000, STEPS=100, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFA
 	GAMBLE_PRIOR_SAMPLES = np.zeros((NUM_GAMBLE_SAMPLES, len(GAMBLES)))
 	for i,g in enumerate(GAMBLES):
 		GAMBLE_PRIOR_SAMPLES[:,i] = np.random.choice(g["outcomes"], NUM_GAMBLE_SAMPLES, p=g["probs"]) - 1
+	GAMBLE_OBSERVED_SAMPLES = np.zeros((STEPS, len(GAMBLES)))
 	GAMBLES_MU = np.mean(GAMBLE_PRIOR_SAMPLES, axis=0)
 	GAMBLE_RANDOM_RETURNS = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in GAMBLES]])
 	GAMBLE_SUCCESS = np.zeros((len(GAMBLES)))
@@ -194,9 +195,9 @@ def simulation(NUM_AGENTS=1000, STEPS=100, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFA
 	for step in tqdm(range(STEPS)):
 
 		# recompute portfolios every 10 steps with attention weighting
-		if step > 0 and (step) % 20 == 0:
+		if step > 0 and (step) % 10 == 0:
 			print(f"Updating portfolios... (step = {step})")
-			NEW_PORTFOLIO = compute_optimal_portfolios(NUM_AGENTS, len(communities)+1, OPTIMIZERS, GAMBLE_RANDOM_RETURNS[:,:step].T - 1, community_membership)
+			NEW_PORTFOLIO = compute_optimal_portfolios(NUM_AGENTS, len(communities)+1, OPTIMIZERS, GAMBLE_OBSERVED_SAMPLES[:step,:] - 1, community_membership)
 			PORTFOLIO = np.multiply((1-ATTENTION)[:,np.newaxis], PORTFOLIO) + np.multiply(ATTENTION[:,np.newaxis], NEW_PORTFOLIO)
 
 		# agents choose consumption, and we compute contributions to each project
@@ -208,6 +209,7 @@ def simulation(NUM_AGENTS=1000, STEPS=100, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFA
 		successful_gambles = project_contributions >= PROJECT_COST
 		GAMBLE_SUCCESS += successful_gambles
 		returns = successful_gambles * GAMBLE_RANDOM_RETURNS[:,step]
+		GAMBLE_OBSERVED_SAMPLES[step] = returns
 
 		# update agent wealth and income
 		invested_wealth = WEALTH[step] * (1-C[step])
@@ -222,7 +224,9 @@ def compute_optimal_portfolios(NUM_AGENTS, num_projects, OPTIMIZERS, SAMPLES, co
 	for i in range(len(OPTIMIZERS)):
 		mv = OPTIMIZERS[i]
 		try:
-			mv.optimize(SAMPLES[:,community_membership[i]])
+			s = SAMPLES[:,community_membership[i]]
+			# s = np.where(np.mean(s,axis=0)>0, s, 0)
+			mv.optimize(s)
 		except:
 			import IPython; IPython.embed()
 		PORTFOLIO[i][community_membership[i]] = mv.weights
