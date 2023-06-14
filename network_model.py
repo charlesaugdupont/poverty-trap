@@ -8,6 +8,7 @@ import random
 import pickle
 
 from tqdm import tqdm
+from multiprocessing import Pool
 
 
 #################################################################################################
@@ -223,18 +224,21 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_A=1.2, DEFAU
 	return WEALTH, INCOME, communities, DELTA_POS, GAMMA_POS, GAMBLE_SUCCESS, PORTFOLIO, C, ATTENTION
 
 
+def multithread_portfolio(arg_tuple):
+	optimizer, samples = arg_tuple
+	optimizer.optimize(samples)
+	return optimizer.weights
+
 def compute_optimal_portfolios(NUM_AGENTS, num_projects, OPTIMIZERS, SAMPLES, community_membership):
+	args = [(OPTIMIZERS[i], SAMPLES[:,community_membership[i]]) for i in range(NUM_AGENTS)]
+	with Pool() as pool:
+		results = pool.map(multithread_portfolio, args)
+	C = np.array(results)
 	PORTFOLIO = np.zeros((NUM_AGENTS, num_projects))
-	for i in range(len(OPTIMIZERS)):
-		mv = OPTIMIZERS[i]
-		try:
-			s = SAMPLES[:,community_membership[i]]
-			# s = np.where(np.mean(s,axis=0)>0, s, 0)
-			mv.optimize(s)
-		except:
-			import IPython; IPython.embed()
-		PORTFOLIO[i][community_membership[i]] = mv.weights
+	for i,portfolio in enumerate(C):
+		PORTFOLIO[i][community_membership[i]] = portfolio
 	return PORTFOLIO
+
 
 #################################################################################################
 
