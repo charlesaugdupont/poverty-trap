@@ -124,7 +124,7 @@ def utility(x, w, investment_returns, A, gamma):
 
 # Simulation
 
-def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10,
+def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_GAMMA=2.1,
 			   PROJECT_COST=3.0, RL=1.2, RR=1.5,  W0=0.8, W1=1.2, NUM_GAMBLE_SAMPLES=1000, seed=None,
 			   graph=None, graph_type="powerlaw_cluster", graph_args={"m":2, "p":0.5}):
 	"""
@@ -184,8 +184,13 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10,
 	WEALTH = np.random.uniform(W0, W1, size=(STEPS+1, NUM_AGENTS))
 	ATTENTION = np.random.uniform(size=NUM_AGENTS)
 	RISK_AVERSION = np.random.uniform(0, 100, size=(NUM_AGENTS))
-	ETA = np.random.uniform(1, 30, size=NUM_AGENTS)
-	ETA_SCALE = np.random.randint(1.1, 2.0, size=NUM_AGENTS)
+
+
+	A_VALUES = np.random.uniform(0.02, 0.04, size=NUM_AGENTS)
+	# ETA = np.random.uniform(1, 30, size=NUM_AGENTS)
+	# ETA_SCALE = np.random.randint(1.1, 2.0, size=NUM_AGENTS)
+
+
 	# optimal portfolios, and expected returns for agents
 	PORTFOLIO = compute_optimal_portfolios(NUM_AGENTS, len(communities)+1, GAMBLES_PRIOR_MU, GAMBLES_PRIOR_COV, RISK_AVERSION, community_membership)
 	AGENT_EXPECTED_RETURNS = [PORTFOLIO[i][community_membership[i]] * GAMBLES_PRIOR_MU[community_membership[i]] for i in range(NUM_AGENTS)]
@@ -210,8 +215,10 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10,
 			
 
 		# agents choose consumption, and we compute contributions to each project
-		stack = np.row_stack([[WEALTH[step][i], sum(AGENT_EXPECTED_RETURNS[i]), ETA[i], ETA_SCALE[i]] for i in range(NUM_AGENTS)]).reshape(NUM_AGENTS,4)
-		CONSUMPTION[step] = response_surface_model.predict(stack)
+		stack = np.row_stack([[WEALTH[step][i], sum(AGENT_EXPECTED_RETURNS[i]), A_VALUES[i]] for i in range(NUM_AGENTS)]).reshape(NUM_AGENTS,3)
+
+		#CONSUMPTION[step] = response_surface_model.predict(stack)
+		CONSUMPTION[step] = np.random.uniform(0.1, 0.2, size=NUM_AGENTS)
 
 		invested_wealth = WEALTH[step] * (1-CONSUMPTION[step])
 		project_contributions = invested_wealth @ PORTFOLIO
@@ -225,9 +232,8 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10,
 		# update agent wealth and income
 		INCOME[step] = np.multiply(invested_wealth[:,np.newaxis], PORTFOLIO) @ returns
 		WEALTH[step+1] = INCOME[step]
-		# import IPython; IPython.embed()
 
-	return WEALTH, INCOME, CONSUMPTION, ATTENTION, RISK_AVERSION, PORTFOLIO, GAMBLE_SUCCESS, communities
+	return WEALTH, INCOME, CONSUMPTION, ATTENTION, RISK_AVERSION, PORTFOLIO, A_VALUES, GAMBLE_SUCCESS, communities
 
 
 def multithread_portfolio(arg_tuple):
