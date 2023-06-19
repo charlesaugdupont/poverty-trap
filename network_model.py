@@ -7,7 +7,6 @@ import random
 import pickle
 
 from tqdm import tqdm
-from multiprocessing import Pool
 
 
 #################################################################################################
@@ -181,13 +180,11 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_GAMMA=2.1,
 	# generate some random gamble returns
 	GAMBLE_RANDOM_RETURNS = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in GAMBLES]])
 
-	# arrays to keep track of actual empirical gamble returns and success counter
+	# array to keep track of actual empirical gamble returns
 	GAMBLE_OBSERVED_SAMPLES = np.zeros((STEPS, len(GAMBLES)))
-	GAMBLE_SUCCESS = np.zeros((len(GAMBLES)))
 
 	# agent attributes
 	CONSUMPTION = np.zeros((STEPS, NUM_AGENTS))
-	INCOME = np.zeros((STEPS, NUM_AGENTS))
 	WEALTH = np.zeros((STEPS+1, NUM_AGENTS))
 	WEALTH[0,:] = 1
 	ATTENTION = np.random.uniform(size=NUM_AGENTS)
@@ -239,15 +236,13 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_GAMMA=2.1,
 
 		# get gamble returns
 		successful_gambles = project_contributions >= PROJECT_COST
-		GAMBLE_SUCCESS += successful_gambles
 		returns = successful_gambles * GAMBLE_RANDOM_RETURNS[:,step]
 		GAMBLE_OBSERVED_SAMPLES[step] = returns
 
-		# update agent wealth and income
-		INCOME[step] = np.multiply(invested_wealth[:,np.newaxis], PORTFOLIOS) @ returns
-		WEALTH[step+1] = INCOME[step]
+		# update agent wealth
+		WEALTH[step+1] = np.multiply(invested_wealth[:,np.newaxis], PORTFOLIOS) @ returns
 
-	return WEALTH, INCOME, CONSUMPTION, ATTENTION, RISK_AVERSION, ALL_PORTFOLIOS, A_VALUES, GAMBLE_SUCCESS, UPDATE_TIMES, communities
+	return WEALTH, CONSUMPTION, ATTENTION, RISK_AVERSION, ALL_PORTFOLIOS, A_VALUES, UPDATE_TIMES, communities, GAMBLE_OBSERVED_SAMPLES
 
 
 def portfolio_update(i, community_membership, risk_aversion, attention, mu, cov, gambles_prior_mu, AGENT_EXPECTED_RETURNS, PORTFOLIOS):
