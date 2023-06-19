@@ -125,7 +125,7 @@ def utility(x, w, investment_returns, A, gamma):
 # Simulation
 
 def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_GAMMA=2.1,
-			   PROJECT_COST=3.0, RL=1.2, RR=1.5,  W0=0.8, W1=1.2, NUM_GAMBLE_SAMPLES=1000, seed=None,
+			   PROJECT_COST=3.0, RL=1.2, RR=1.5, NUM_GAMBLE_SAMPLES=1000, seed=None,
 			   graph=None, graph_type="powerlaw_cluster", graph_args={"m":2, "p":0.5}):
 	"""
 	Runs ABM model.
@@ -166,24 +166,39 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_GAMMA=2.1,
 	# get community membership of each agent
 	community_membership = get_community_membership(G, communities)
 
-	# global attributes
+	# generate random gambles and append safe asset
 	GAMBLES = generate_gambles(len(communities), left=RL, right=RR)
 	GAMBLES.append({"outcomes":[SAFE_RETURN, 0.0], "probs":[1.0, 0.0]})
+
+	# generate some prior samples, and compute mean and covariance
 	GAMBLE_PRIOR_SAMPLES = np.zeros((NUM_GAMBLE_SAMPLES, len(GAMBLES)))
 	for i,g in enumerate(GAMBLES):
 		GAMBLE_PRIOR_SAMPLES[:,i] = np.random.choice(g["outcomes"], NUM_GAMBLE_SAMPLES, p=g["probs"])
-	GAMBLE_OBSERVED_SAMPLES = np.zeros((STEPS, len(GAMBLES)))
 	GAMBLES_PRIOR_MU  = np.mean(GAMBLE_PRIOR_SAMPLES, axis=0)
-	GAMBLES_PRIOR_COV = np.cov(GAMBLE_PRIOR_SAMPLES, rowvar=False)
+	GAMBLES_PRIOR_COV = np.cov(GAMBLE_PRIOR_SAMPLES, rowvar=False)	
+	assert SAFE_RETURN <= np.min(GAMBLES_PRIOR_MU[:-1])
+
+	# generate some random gamble returns
 	GAMBLE_RANDOM_RETURNS = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in GAMBLES]])
+
+	# arrays to keep track of actual empirical gamble returns and success counter
+	GAMBLE_OBSERVED_SAMPLES = np.zeros((STEPS, len(GAMBLES)))
 	GAMBLE_SUCCESS = np.zeros((len(GAMBLES)))
 
 	# agent attributes
 	CONSUMPTION = np.zeros((STEPS, NUM_AGENTS))
 	INCOME = np.zeros((STEPS, NUM_AGENTS))
-	WEALTH = np.random.uniform(W0, W1, size=(STEPS+1, NUM_AGENTS))
+	WEALTH = np.zeros((STEPS+1, NUM_AGENTS))
+	WEALTH[0,:] = 1
 	ATTENTION = np.random.uniform(size=NUM_AGENTS)
 	RISK_AVERSION = np.random.uniform(0, 100, size=(NUM_AGENTS))
+
+	# generate some Poisson distributed portfolio update times (first time is at least 3)
+	MIN_UPDATE_TIME  = 3
+	MEAN_UPDATE_TIME = 10
+	POISSON_TIMES = np.random.poisson(MEAN_UPDATE_TIME, size=(NUM_AGENTS, 6))
+	POISSON_TIMES[:,0] = np.maximum(MIN_UPDATE_TIME, POISSON_TIMES[:,0])
+	UPDATE_TIMES = {k:set(v) for k,v in enumerate(np.cumsum(POISSON_TIMES, axis=1))}
 
 
 	A_VALUES = np.random.uniform(0.02, 0.04, size=NUM_AGENTS)
@@ -191,37 +206,36 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_GAMMA=2.1,
 	# ETA_SCALE = np.random.randint(1.1, 2.0, size=NUM_AGENTS)
 
 
-	# optimal portfolios, and expected returns for agents
-	PORTFOLIO = compute_optimal_portfolios(NUM_AGENTS, len(communities)+1, GAMBLES_PRIOR_MU, GAMBLES_PRIOR_COV, RISK_AVERSION, community_membership)
-	AGENT_EXPECTED_RETURNS = [PORTFOLIO[i][community_membership[i]] * GAMBLES_PRIOR_MU[community_membership[i]] for i in range(NUM_AGENTS)]
+	# initialize portfolios and compute expected returns for each agent
+	PORTFOLIOS = initialize_portfolios(NUM_AGENTS, len(communities)+1, GAMBLES_PRIOR_MU, GAMBLES_PRIOR_COV, RISK_AVERSION, community_membership)
+	AGENT_EXPECTED_RETURNS = [PORTFOLIOS[i][community_membership[i]] * GAMBLES_PRIOR_MU[community_membership[i]] for i in range(NUM_AGENTS)]
+	ALL_PORTFOLIOS = {i:[PORTFOLIOS[i][community_membership[i]]] for i in range(NUM_AGENTS)}
+	
 
-	# simulation
+	# RUN SIMULATION
 	print("Performing time stepping...")
 	for step in tqdm(range(STEPS)):
 
-		# compute updated portfolios and expected returns every 10 steps with attention weighting
-		if step > 0 and (step) % 10 == 0:
-			print(f"Updating portfolios... (step = {step})")
+		# check for portfolio updates
+		if step >= MIN_UPDATE_TIME:
 			recent_samples = GAMBLE_OBSERVED_SAMPLES[:step,:]
 			MU  = np.mean(recent_samples, axis=0)
 			COV = np.cov(recent_samples, rowvar=False)
-			NEW_PORTFOLIO = compute_optimal_portfolios(NUM_AGENTS, len(communities)+1, MU, COV, RISK_AVERSION, community_membership)
-			WEIGHTED_PORTFOLIO = PORTFOLIO = np.multiply((1-ATTENTION)[:,np.newaxis], PORTFOLIO) + np.multiply(ATTENTION[:,np.newaxis], NEW_PORTFOLIO)
-			AGENT_EXPECTED_RETURNS = [(1-ATTENTION[i])*GAMBLES_PRIOR_MU[community_membership[i]]*PORTFOLIO[i][community_membership[i]] + \
-			     					  ATTENTION[i]*MU[community_membership[i]]*WEIGHTED_PORTFOLIO[i][community_membership[i]] 
-			     					  for i in range(NUM_AGENTS)]
-			# update portfolios to the weighted ones
-			PORTFOLIO = WEIGHTED_PORTFOLIO
-			
+			for i in range(NUM_AGENTS):
+				if step in UPDATE_TIMES[i]:
+					comm_mem = community_membership[i]
+					portfolio_update(i, comm_mem, RISK_AVERSION[i], ATTENTION[i], MU[comm_mem],
+		      						 COV[comm_mem,:][:,comm_mem], GAMBLES_PRIOR_MU[comm_mem],
+								     AGENT_EXPECTED_RETURNS, PORTFOLIOS)
+					ALL_PORTFOLIOS[i].append(PORTFOLIOS[i][comm_mem])
 
 		# agents choose consumption, and we compute contributions to each project
 		stack = np.row_stack([[WEALTH[step][i], sum(AGENT_EXPECTED_RETURNS[i]), A_VALUES[i]] for i in range(NUM_AGENTS)]).reshape(NUM_AGENTS,3)
-
 		#CONSUMPTION[step] = response_surface_model.predict(stack)
 		CONSUMPTION[step] = np.random.uniform(0.1, 0.2, size=NUM_AGENTS)
 
 		invested_wealth = WEALTH[step] * (1-CONSUMPTION[step])
-		project_contributions = invested_wealth @ PORTFOLIO
+		project_contributions = invested_wealth @ PORTFOLIOS
 
 		# get gamble returns
 		successful_gambles = project_contributions >= PROJECT_COST
@@ -230,30 +244,34 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_GAMMA=2.1,
 		GAMBLE_OBSERVED_SAMPLES[step] = returns
 
 		# update agent wealth and income
-		INCOME[step] = np.multiply(invested_wealth[:,np.newaxis], PORTFOLIO) @ returns
+		INCOME[step] = np.multiply(invested_wealth[:,np.newaxis], PORTFOLIOS) @ returns
 		WEALTH[step+1] = INCOME[step]
 
-	return WEALTH, INCOME, CONSUMPTION, ATTENTION, RISK_AVERSION, PORTFOLIO, A_VALUES, GAMBLE_SUCCESS, communities
+	return WEALTH, INCOME, CONSUMPTION, ATTENTION, RISK_AVERSION, ALL_PORTFOLIOS, A_VALUES, GAMBLE_SUCCESS, UPDATE_TIMES, communities
 
 
-def multithread_portfolio(arg_tuple):
-	mu, cov, risk_aversion = arg_tuple
+def portfolio_update(i, community_membership, risk_aversion, attention, mu, cov, gambles_prior_mu, AGENT_EXPECTED_RETURNS, PORTFOLIOS):
+	NEW_PORTFOLIO = np.zeros(PORTFOLIOS.shape[1])
 	optimizer = Optimizer(mu, cov)
 	optimizer.add_objective("efficient_frontier", aversion=risk_aversion)
 	optimizer.add_constraint("weight", weight_bound=(0,1), leverage=1)
 	optimizer.solve()
-	return optimizer.weight_sols
+	NEW_PORTFOLIO[community_membership] = optimizer.weight_sols
+	AGENT_EXPECTED_RETURNS[i] = (1-attention)*gambles_prior_mu*PORTFOLIOS[i][community_membership] + \
+								attention*mu*NEW_PORTFOLIO[community_membership]
+	PORTFOLIOS[i] = (1-attention)*PORTFOLIOS[i] + attention*NEW_PORTFOLIO
 
 
-def compute_optimal_portfolios(NUM_AGENTS, num_projects, mu, cov, risk_aversion, community_membership):
-	args = [(mu[community_membership[i]], cov[community_membership[i],:][:,community_membership[i]], risk_aversion[i]) for i in range(NUM_AGENTS)]
-	with Pool() as pool:
-		results = pool.map(multithread_portfolio, args)
-	results = np.array(results, dtype=object)
-	PORTFOLIO = np.zeros((NUM_AGENTS, num_projects))
-	for i,portfolio in enumerate(results):
-		PORTFOLIO[i][community_membership[i]] = portfolio
-	return PORTFOLIO
+def initialize_portfolios(NUM_AGENTS, num_projects, mu, cov, risk_aversion, community_membership):
+	INITIAL_PORTFOLIOS = np.zeros((NUM_AGENTS, num_projects))
+	for i in range(NUM_AGENTS):
+		M, C, R = mu[community_membership[i]], cov[community_membership[i],:][:,community_membership[i]], risk_aversion[i]
+		optimizer = Optimizer(M, C)
+		optimizer.add_objective("efficient_frontier", aversion=R)
+		optimizer.add_constraint("weight", weight_bound=(0,1), leverage=1)
+		optimizer.solve()
+		INITIAL_PORTFOLIOS[i][community_membership[i]] = optimizer.weight_sols
+	return INITIAL_PORTFOLIOS
 
 #################################################################################################
 
