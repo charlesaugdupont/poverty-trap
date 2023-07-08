@@ -4,9 +4,8 @@ import networkx as nx
 from pymarkowitz import Optimizer
 
 import random
-import pickle
 
-from tqdm import tqdm
+#from tqdm import tqdm
 
 
 #################################################################################################
@@ -85,8 +84,7 @@ def simulation(NUM_AGENTS=1250,
 			   SAFE_RETURN=1.10,
 			   PROJECT_COST=3.0,  
 			   RR=1.7, 
-			   ALPHA=0.40,
-			   BETA=0.95,
+			   ALPHA_BETA=0.8,
 			   NUM_GAMBLE_SAMPLES=1000, 
 			   seed=None,
 			   graph=None, 
@@ -165,7 +163,7 @@ def simulation(NUM_AGENTS=1250,
 
 	# RUN SIMULATION
 	print("Performing time stepping...")
-	for step in tqdm(range(STEPS)):
+	for step in range(STEPS):
 
 		# check for portfolio updates
 		if step >= MIN_UPDATE_TIME:
@@ -182,7 +180,7 @@ def simulation(NUM_AGENTS=1250,
 
 		# agents choose consumption, and we compute contributions to each project
 		expected_returns = np.array([sum(AGENT_EXPECTED_RETURNS[i]) for i in range(NUM_AGENTS)])
-		CONSUMPTION[step] = (1-ALPHA*BETA)*WEALTH[step]*expected_returns
+		CONSUMPTION[step] = (1-ALPHA_BETA)*WEALTH[step]*expected_returns
 		invested_wealth = WEALTH[step] - CONSUMPTION[step]
 		project_contributions = invested_wealth @ PORTFOLIOS
 

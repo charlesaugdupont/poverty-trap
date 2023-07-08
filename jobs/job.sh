@@ -3,7 +3,7 @@
 # Set job requirements
 
 #SBATCH -p thin
-#SBATCH -t 02:30:00
+#SBATCH -t 01:00:00
 
 #SBATCH --nodes=1
 #SBATCH --ntasks=16
@@ -18,6 +18,7 @@ pip install --user scipy
 pip install --user SALib
 pip install --user networkx
 pip install --user git+https://github.com/cvxgrp/cptopt.git
+pip install --user pymarkowitz
 
 
 # Create output directory on scratch
