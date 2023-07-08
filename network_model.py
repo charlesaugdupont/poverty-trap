@@ -1,7 +1,8 @@
 import numpy as np
 import networkx as nx
 
-from pymarkowitz import Optimizer
+from cptopt.optimizer import MeanVarianceFrontierOptimizer
+from cptopt.utility import CPTUtility
 
 import random
 
@@ -85,6 +86,10 @@ def simulation(NUM_AGENTS=1250,
 			   PROJECT_COST=3.0,  
 			   RR=1.7, 
 			   ALPHA_BETA=0.8,
+			   DELTA_POS_L=0.5,
+			   DELTA_POS_R=0.78,
+			   GAMMA_POS_L=3, 
+			   GAMMA_POS_R=9,
 			   NUM_GAMBLE_SAMPLES=1000, 
 			   seed=None,
 			   graph=None, 
@@ -148,6 +153,10 @@ def simulation(NUM_AGENTS=1250,
 	ATTENTION = np.random.uniform(size=NUM_AGENTS)
 	RISK_AVERSION = np.random.uniform(0, 100, size=(NUM_AGENTS))      # TODO: INVESTIGATE THIS
 
+	DELTA_POS = np.random.uniform(DELTA_POS_L, DELTA_POS_R, NUM_AGENTS)
+	GAMMA_POS = np.random.uniform(GAMMA_POS_L, GAMMA_POS_R, NUM_AGENTS)
+	UTILITIES = [CPTUtility(gamma_pos=GAMMA_POS[i], gamma_neg=11.4, delta_pos=DELTA_POS[i], delta_neg=0.79) for i in range(NUM_AGENTS)]
+
 	# generate some Poisson distributed portfolio update times (first time is at least 3)
 	MIN_UPDATE_TIME  = 3
 	MEAN_UPDATE_TIME = 10
@@ -156,10 +165,9 @@ def simulation(NUM_AGENTS=1250,
 	UPDATE_TIMES = {k:set(v) for k,v in enumerate(np.cumsum(POISSON_TIMES, axis=1))}
 
 	# initialize portfolios and compute expected returns for each agent
-	PORTFOLIOS = initialize_portfolios(NUM_AGENTS, len(communities)+1, GAMBLES_PRIOR_MU, GAMBLES_PRIOR_COV, RISK_AVERSION, community_membership)
+	PORTFOLIOS = initialize_portfolios(NUM_AGENTS, len(communities)+1, UTILITIES, GAMBLE_PRIOR_SAMPLES, SAFE_RETURN, community_membership)
 	AGENT_EXPECTED_RETURNS = [PORTFOLIOS[i][community_membership[i]] * GAMBLES_PRIOR_MU[community_membership[i]] for i in range(NUM_AGENTS)]
 	ALL_PORTFOLIOS = {i:[PORTFOLIOS[i][community_membership[i]]] for i in range(NUM_AGENTS)}
-
 
 	# RUN SIMULATION
 	print("Performing time stepping...")
@@ -169,13 +177,11 @@ def simulation(NUM_AGENTS=1250,
 		if step >= MIN_UPDATE_TIME:
 			recent_samples = GAMBLE_OBSERVED_SAMPLES[:step,:]
 			MU  = np.mean(recent_samples, axis=0)
-			COV = np.cov(recent_samples, rowvar=False)
 			for i in range(NUM_AGENTS):
 				if step in UPDATE_TIMES[i]:
 					comm_mem = community_membership[i]
-					portfolio_update(i, comm_mem, RISK_AVERSION[i], ATTENTION[i], MU[comm_mem],
-		      						 COV[comm_mem,:][:,comm_mem], GAMBLES_PRIOR_MU[comm_mem],
-								     AGENT_EXPECTED_RETURNS, PORTFOLIOS)
+					portfolio_update(i, UTILITIES[i], recent_samples[:,comm_mem], SAFE_RETURN, comm_mem, ATTENTION[i], MU[comm_mem],
+		      						 GAMBLES_PRIOR_MU[comm_mem], AGENT_EXPECTED_RETURNS, PORTFOLIOS)
 					ALL_PORTFOLIOS[i].append(PORTFOLIOS[i][comm_mem])
 
 		# agents choose consumption, and we compute contributions to each project
@@ -195,27 +201,25 @@ def simulation(NUM_AGENTS=1250,
 	return WEALTH, CONSUMPTION, ATTENTION, RISK_AVERSION, ALL_PORTFOLIOS, UPDATE_TIMES, communities, GAMBLE_OBSERVED_SAMPLES
 
 
-def portfolio_update(i, community_membership, risk_aversion, attention, mu, cov, gambles_prior_mu, AGENT_EXPECTED_RETURNS, PORTFOLIOS):
+def portfolio_update(i, utility, gamble_returns, SAFE_RETURN, community_membership, attention, mu, gambles_prior_mu, AGENT_EXPECTED_RETURNS, PORTFOLIOS):
 	NEW_PORTFOLIO = np.zeros(PORTFOLIOS.shape[1])
-	optimizer = Optimizer(mu, cov)
-	optimizer.add_objective("efficient_frontier", aversion=risk_aversion)
-	optimizer.add_constraint("weight", weight_bound=(0,1), leverage=1)
-	optimizer.solve()
-	NEW_PORTFOLIO[community_membership] = optimizer.weight_sols
+	mv = MeanVarianceFrontierOptimizer(utility)	
+	samples_with_safe_gamble = np.column_stack([gamble_returns, np.repeat(SAFE_RETURN-1, gamble_returns.shape[0])])
+	mv.optimize(samples_with_safe_gamble)
+	NEW_PORTFOLIO[community_membership] = mv.weights
 	AGENT_EXPECTED_RETURNS[i] = (1-attention)*gambles_prior_mu*PORTFOLIOS[i][community_membership] + \
 								attention*mu*NEW_PORTFOLIO[community_membership]
 	PORTFOLIOS[i] = (1-attention)*PORTFOLIOS[i] + attention*NEW_PORTFOLIO
 
 
-def initialize_portfolios(NUM_AGENTS, num_projects, mu, cov, risk_aversion, community_membership):
+def initialize_portfolios(NUM_AGENTS, num_projects, UTILITIES, GAMBLE_SAMPLES, SAFE_RETURN, community_membership):
 	INITIAL_PORTFOLIOS = np.zeros((NUM_AGENTS, num_projects))
 	for i in range(NUM_AGENTS):
-		M, C, R = mu[community_membership[i]], cov[community_membership[i],:][:,community_membership[i]], risk_aversion[i]
-		optimizer = Optimizer(M, C)
-		optimizer.add_objective("efficient_frontier", aversion=R)
-		optimizer.add_constraint("weight", weight_bound=(0,1), leverage=1)
-		optimizer.solve()
-		INITIAL_PORTFOLIOS[i][community_membership[i]] = optimizer.weight_sols
+		mv = MeanVarianceFrontierOptimizer(UTILITIES[i])
+		samples = GAMBLE_SAMPLES[:,community_membership[i]]
+		samples_with_safe_gamble = np.column_stack([samples, np.repeat(SAFE_RETURN-1, samples.shape[0])])
+		mv.optimize(samples_with_safe_gamble)
+		INITIAL_PORTFOLIOS[i][community_membership[i]] = mv.weights
 	return INITIAL_PORTFOLIOS
 
 #################################################################################################
