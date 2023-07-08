@@ -11,30 +11,6 @@ from tqdm import tqdm
 
 #################################################################################################
 
-# UTILITY FUNCTIONS
-def U(x, gamma=2.1, A=1.2):
-	"""
-	Utility function for consumption of agent.
-	"""
-	return A*x**(1-gamma) / (1-gamma)
-
-
-def V(x, gamma=2.1):
-	"""
-	Utility function for bequest of agent to offspring.
-	"""
-	return x**(1-gamma) / (1-gamma)
-
-
-def iso(x, eta=0.5):
-    """
-	Isoelastic utility function.
-	"""
-    return x**(1-eta) / (1-eta)
-
-
-#################################################################################################
-
 # Network Construction
 
 def build_graph(n, graph_type, graph_args):
@@ -80,13 +56,13 @@ def get_community_membership(G, communities):
 
 # Gambles
 
-def generate_gambles(N, left, right):
+def generate_gambles(N, right):
 	"""
 	Generate N gambles with 2 outcomes.
 	"""
 	probs     = np.random.uniform(0.30, 0.70, N)
 	outcomes1 = np.random.uniform(0.90, 0.95, N)
-	outcomes2 = np.random.uniform(left, right, N)
+	outcomes2 = np.random.uniform(1.6, right, N)
 
 	gambles = []
 	for i in range(N):
@@ -102,55 +78,39 @@ def get_gamble_returns(P, size):
 
 #################################################################################################
 
-# Optimization
-
-def utility(x, w, investment_returns, A, gamma):
-	"""
-	Compute expected utility.
-	Args:
-		x                   : consumption proportion
-		w                   : wealth level of agent
-		project_allocations : allocation of savings to risky projects
-		project_returns     : expected project return
-		A                   : utility function parameter
-		gamma               : utility function parameter
-	Returns:
-		utility
-	"""
-	return - (U(w*x, A=A, gamma=gamma) + V(sum(w*(1-x)*investment_returns)))
-
-#################################################################################################
-
 # Simulation
 
-def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_GAMMA=2.1,
-			   PROJECT_COST=3.0, RL=1.2, RR=1.5, NUM_GAMBLE_SAMPLES=1000, seed=None,
-			   graph=None, graph_type="powerlaw_cluster", graph_args={"m":2, "p":0.5}):
+def simulation(NUM_AGENTS=1250, 
+	       	   STEPS=50,
+			   SAFE_RETURN=1.10,
+			   PROJECT_COST=3.0,  
+			   RR=1.7, 
+			   ALPHA=0.40,
+			   BETA=0.95,
+			   NUM_GAMBLE_SAMPLES=1000, 
+			   seed=None,
+			   graph=None, 
+			   graph_type="powerlaw_cluster", 
+			   graph_args={"m":2, "p":0.5}):
 	"""
 	Runs ABM model.
 	Args:
 		NUM_AGENTS    	   : number of agents
 		STEPS         	   : number of steps
 		SAFE_RETURN   	   : safe return coefficient (> 1.0)
-		DEFAULT_A     	   : parameter used in utility functions
-		DEFAULT_GAMMA 	   : parameter used in utility functions
 		PROJECT_COST  	   : minimum cost for project to be undertaken
-		RL
-		RR
-		W0            	   : left bound for uniform random wealth initialization
-		W1            	   : right bound for uniform random wealth initialization
+		RR				   : right bound for generating gamble gains
+		ALPHA			   : production function parameter used to compute optimal consumption
+		BETA               : time discounting factor used to compute optimal consumption
 		NUM_GAMBLE_SAMPLES : number of random samples for cumulative prospect theory utility
-		seed
+		seed			   : random seed
 		graph 		  	   : NetworkX graph
-		graph_type    	   : type of graph to use
-		graph_args    	   : arguments for graph construction, specific to graph type passed
+		graph_type    	   : type of graph
+		graph_args    	   : arguments for graph construction, specific to graph_type
 	Returns:
 		WEALTH      : (STEPS, NUM_AGENTS) array containing wealth levels of agents at each iteration
 		communities : dict from community ID to list of members
 	"""
-	with open("rfr.pickle", "rb") as f:
-		response_surface_model = pickle.load(f)
-
 	if seed:
 		random.seed(seed)
 		np.random.seed(seed)
@@ -166,7 +126,7 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_GAMMA=2.1,
 	community_membership = get_community_membership(G, communities)
 
 	# generate random gambles and append safe asset
-	GAMBLES = generate_gambles(len(communities), left=RL, right=RR)
+	GAMBLES = generate_gambles(len(communities), right=RR)
 	GAMBLES.append({"outcomes":[SAFE_RETURN, 0.0], "probs":[1.0, 0.0]})
 
 	# generate some prior samples, and compute mean and covariance
@@ -188,7 +148,7 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_GAMMA=2.1,
 	WEALTH = np.zeros((STEPS+1, NUM_AGENTS))
 	WEALTH[0,:] = 1
 	ATTENTION = np.random.uniform(size=NUM_AGENTS)
-	RISK_AVERSION = np.random.uniform(0, 100, size=(NUM_AGENTS))
+	RISK_AVERSION = np.random.uniform(0, 100, size=(NUM_AGENTS))      # TODO: INVESTIGATE THIS
 
 	# generate some Poisson distributed portfolio update times (first time is at least 3)
 	MIN_UPDATE_TIME  = 3
@@ -197,17 +157,11 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_GAMMA=2.1,
 	POISSON_TIMES[:,0] = np.maximum(MIN_UPDATE_TIME, POISSON_TIMES[:,0])
 	UPDATE_TIMES = {k:set(v) for k,v in enumerate(np.cumsum(POISSON_TIMES, axis=1))}
 
-
-	A_VALUES = np.random.uniform(0.02, 0.04, size=NUM_AGENTS)
-	# ETA = np.random.uniform(1, 30, size=NUM_AGENTS)
-	# ETA_SCALE = np.random.randint(1.1, 2.0, size=NUM_AGENTS)
-
-
 	# initialize portfolios and compute expected returns for each agent
 	PORTFOLIOS = initialize_portfolios(NUM_AGENTS, len(communities)+1, GAMBLES_PRIOR_MU, GAMBLES_PRIOR_COV, RISK_AVERSION, community_membership)
 	AGENT_EXPECTED_RETURNS = [PORTFOLIOS[i][community_membership[i]] * GAMBLES_PRIOR_MU[community_membership[i]] for i in range(NUM_AGENTS)]
 	ALL_PORTFOLIOS = {i:[PORTFOLIOS[i][community_membership[i]]] for i in range(NUM_AGENTS)}
-	
+
 
 	# RUN SIMULATION
 	print("Performing time stepping...")
@@ -227,11 +181,9 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_GAMMA=2.1,
 					ALL_PORTFOLIOS[i].append(PORTFOLIOS[i][comm_mem])
 
 		# agents choose consumption, and we compute contributions to each project
-		stack = np.row_stack([[WEALTH[step][i], sum(AGENT_EXPECTED_RETURNS[i]), A_VALUES[i]] for i in range(NUM_AGENTS)]).reshape(NUM_AGENTS,3)
-		#CONSUMPTION[step] = response_surface_model.predict(stack)
-		CONSUMPTION[step] = np.random.uniform(0.1, 0.2, size=NUM_AGENTS)
-
-		invested_wealth = WEALTH[step] * (1-CONSUMPTION[step])
+		expected_returns = np.array([sum(AGENT_EXPECTED_RETURNS[i]) for i in range(NUM_AGENTS)])
+		CONSUMPTION[step] = (1-ALPHA*BETA)*WEALTH[step]*expected_returns
+		invested_wealth = WEALTH[step] - CONSUMPTION[step]
 		project_contributions = invested_wealth @ PORTFOLIOS
 
 		# get gamble returns
@@ -242,7 +194,7 @@ def simulation(NUM_AGENTS=1000, STEPS=50, SAFE_RETURN=1.10, DEFAULT_GAMMA=2.1,
 		# update agent wealth
 		WEALTH[step+1] = np.multiply(invested_wealth[:,np.newaxis], PORTFOLIOS) @ returns
 
-	return WEALTH, CONSUMPTION, ATTENTION, RISK_AVERSION, ALL_PORTFOLIOS, A_VALUES, UPDATE_TIMES, communities, GAMBLE_OBSERVED_SAMPLES
+	return WEALTH, CONSUMPTION, ATTENTION, RISK_AVERSION, ALL_PORTFOLIOS, UPDATE_TIMES, communities, GAMBLE_OBSERVED_SAMPLES
 
 
 def portfolio_update(i, community_membership, risk_aversion, attention, mu, cov, gambles_prior_mu, AGENT_EXPECTED_RETURNS, PORTFOLIOS):
