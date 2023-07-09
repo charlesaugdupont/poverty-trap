@@ -64,8 +64,8 @@ if __name__ == "__main__":
 				pickle.dump({
 					"W":W.astype(np.float32),
 					"C":C.astype(np.float32),
-					"A":A.astype(np.float32),
-					"R":R.astype(np.int8),
+					"A":A,
+					"R":R,
 					"P":P,
 					"T":np.array(list(T.values())).astype(np.int8),
 					"communities":communities,

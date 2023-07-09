@@ -150,11 +150,8 @@ def simulation(NUM_AGENTS=1250,
 	CONSUMPTION = np.zeros((STEPS, NUM_AGENTS))
 	WEALTH = np.zeros((STEPS+1, NUM_AGENTS))
 	WEALTH[0,:] = np.random.normal(1, init_wealth_scale, size=NUM_AGENTS)
-	ATTENTION = np.random.uniform(size=NUM_AGENTS)
-
-
-
-	RISK_AVERSION = np.random.uniform(20 - risk_scale, 20 + risk_scale, size=(NUM_AGENTS))
+	ATTENTION = np.random.uniform(size=NUM_AGENTS).astype(np.float32)
+	RISK_AVERSION = np.random.uniform(20 - risk_scale, 20 + risk_scale, size=(NUM_AGENTS)).astype(np.float32)
 
 	# generate some Poisson distributed portfolio update times (first time is at least 3)
 	MIN_UPDATE_TIME = 5
@@ -192,6 +189,9 @@ def simulation(NUM_AGENTS=1250,
 
 		# get gamble returns
 		successful_gambles = project_contributions >= PROJECT_COST
+
+		# safe asset has guaranteed return
+		successful_gambles[-1] = True
 		returns = successful_gambles * GAMBLE_RANDOM_RETURNS[:,step]
 		GAMBLE_OBSERVED_SAMPLES[step] = returns
 
