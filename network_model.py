@@ -151,7 +151,10 @@ def simulation(NUM_AGENTS=1250,
 	WEALTH = np.zeros((STEPS+1, NUM_AGENTS))
 	WEALTH[0,:] = np.random.normal(1, init_wealth_scale, size=NUM_AGENTS)
 	ATTENTION = np.random.uniform(size=NUM_AGENTS)
-	RISK_AVERSION = np.random.normal(50, risk_scale, size=(NUM_AGENTS))
+
+
+
+	RISK_AVERSION = np.random.uniform(20 - risk_scale, 20 + risk_scale, size=(NUM_AGENTS))
 
 	# generate some Poisson distributed portfolio update times (first time is at least 3)
 	MIN_UPDATE_TIME = 5

@@ -1,12 +1,8 @@
 import sys
+import time
 import pickle
 from network_model import *
 from SALib.sample import sobol
-
-import time
-
-
-SEED = 23
 
 
 if __name__ == "__main__":
@@ -15,13 +11,16 @@ if __name__ == "__main__":
 	output_dir = sys.argv[1]
 	idx = int(sys.argv[2]) - 1
 
+	with open("graph.pickle", "rb") as f:
+		graph = pickle.load(f)
+
 	# problem definition
 	PROBLEM = {
 		"num_vars" : 7,
 		"names"    : ["project_cost", 
 					  "gain_right", 
 					  "alpha_beta", 
-					  "prob_left", 
+					  "prob_left",
 					  "init_w_scale", 
 					  "risk_scale", 
 					  "poisson_scale"],
@@ -30,8 +29,8 @@ if __name__ == "__main__":
 					  [0.70, 0.80],
 					  [0.30, 0.50],
 					  [0.01, 0.15],
-					  [1.00, 8.00],
-					  [8.00, 20.00]]
+					  [5.00, 20.0],
+					  [8.00, 20.0]]
 	}
 
 	# generate Saltelli samples
@@ -42,21 +41,35 @@ if __name__ == "__main__":
 
 	start_time = time.time()
 
-	# run experiments
+	# run each param combination
 	for iter_idx, row in enumerate(X):
-		W, C, A, R, P, T, communities, G = simulation (
-			NUM_AGENTS=1250, STEPS=50, seed=SEED, PROJECT_COST=row[0], gain_right=row[1], ALPHA_BETA=row[2], prob_left=row[3]
-		)
-		with open(output_dir + f"/{row[0]}_{row[1]}_{row[2]}_{row[3]}.pickle", "wb") as f:
-			pickle.dump({
-				"W":W.astype(np.float32),
-				"C":C.astype(np.float32),
-				"A":A.astype(np.float32),
-				"R":R.astype(np.int8),
-				"P":P,
-				"T":np.array(list(T.values())).astype(np.int8),
-				"communities":communities,
-				"G":G.astype(np.float32)
-			}, f)
-	
+
+		# 10 repetitions to capture stochastic effects
+		for rep_idx, SEED in enumerate([1, 2, 3, 5, 8, 13, 21, 34, 55, 89]):
+
+			W, C, A, R, P, T, communities, G = simulation (
+				graph=graph,
+				NUM_AGENTS=1250,
+				STEPS=50,
+				seed=SEED,
+				PROJECT_COST=row[0],
+				gain_right=row[1],
+				ALPHA_BETA=row[2],
+				prob_left=row[3],
+				init_wealth_scale=row[4],
+			   	risk_scale=row[5],
+			   	poisson_scale=row[6]
+			)
+			with open(output_dir + f"/{rep_idx}_{idx*L + iter_idx + 1}.pickle", "wb") as f:
+				pickle.dump({
+					"W":W.astype(np.float32),
+					"C":C.astype(np.float32),
+					"A":A.astype(np.float32),
+					"R":R.astype(np.int8),
+					"P":P,
+					"T":np.array(list(T.values())).astype(np.int8),
+					"communities":communities,
+					"G":G.astype(np.float32)
+				}, f)
+		
 	print(f"JOB {idx} : completed {L} runs in {(time.time() - start_time)/60:.3f} minutes.")
