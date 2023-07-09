@@ -55,13 +55,13 @@ def get_community_membership(G, communities):
 
 # Gambles
 
-def generate_gambles(N, right):
+def generate_gambles(N, gain_right_bound, prob_left=0.3):
 	"""
 	Generate N gambles with 2 outcomes.
 	"""
-	probs     = np.random.uniform(0.30, 0.70, N)
+	probs     = np.random.uniform(prob_left, 1-prob_left, N)
 	outcomes1 = np.random.uniform(0.90, 0.95, N)
-	outcomes2 = np.random.uniform(1.6, right, N)
+	outcomes2 = np.random.uniform(1.6, gain_right_bound, N)
 
 	gambles = []
 	for i in range(N):
@@ -83,11 +83,15 @@ def simulation(NUM_AGENTS=1250,
 	       	   STEPS=50,
 			   SAFE_RETURN=1.10,
 			   PROJECT_COST=3.0,  
-			   RR=1.7, 
+			   gain_right=1.7, 
 			   ALPHA_BETA=0.8,
+			   prob_left=0.3,
+			   init_wealth_scale=0.02,
+			   risk_scale=4.00,
+			   poisson_scale=12,
 			   NUM_GAMBLE_SAMPLES=1000, 
 			   seed=None,
-			   graph=None, 
+			   graph=None,
 			   graph_type="powerlaw_cluster", 
 			   graph_args={"m":2, "p":0.5}):
 	"""
@@ -97,7 +101,8 @@ def simulation(NUM_AGENTS=1250,
 		STEPS         	   : number of steps
 		SAFE_RETURN   	   : safe return coefficient (> 1.0)
 		PROJECT_COST  	   : minimum cost for project to be undertaken
-		RR				   : right bound for generating gamble gains
+		gain_right		   : right bound for generating gamble gains
+		prob_left 		   : left uniform bound for generating gamble branch probabilities
 		ALPHA			   : production function parameter used to compute optimal consumption
 		BETA               : time discounting factor used to compute optimal consumption
 		NUM_GAMBLE_SAMPLES : number of random samples for cumulative prospect theory utility
@@ -124,7 +129,7 @@ def simulation(NUM_AGENTS=1250,
 	community_membership = get_community_membership(G, communities)
 
 	# generate random gambles and append safe asset
-	GAMBLES = generate_gambles(len(communities), right=RR)
+	GAMBLES = generate_gambles(len(communities), gain_right_bound=gain_right, prob_left=prob_left)
 	GAMBLES.append({"outcomes":[SAFE_RETURN, 0.0], "probs":[1.0, 0.0]})
 
 	# generate some prior samples, and compute mean and covariance
@@ -144,14 +149,13 @@ def simulation(NUM_AGENTS=1250,
 	# agent attributes
 	CONSUMPTION = np.zeros((STEPS, NUM_AGENTS))
 	WEALTH = np.zeros((STEPS+1, NUM_AGENTS))
-	WEALTH[0,:] = 1
+	WEALTH[0,:] = np.random.normal(1, init_wealth_scale, size=NUM_AGENTS)
 	ATTENTION = np.random.uniform(size=NUM_AGENTS)
-	RISK_AVERSION = np.random.randint(0, 100, size=(NUM_AGENTS))
+	RISK_AVERSION = np.random.normal(50, risk_scale, size=(NUM_AGENTS))
 
 	# generate some Poisson distributed portfolio update times (first time is at least 3)
-	MIN_UPDATE_TIME  = 5
-	MEAN_UPDATE_TIME = 12
-	POISSON_TIMES = np.random.poisson(MEAN_UPDATE_TIME, size=(NUM_AGENTS, 6))
+	MIN_UPDATE_TIME = 5
+	POISSON_TIMES = np.random.poisson(poisson_scale, size=(NUM_AGENTS, 12))
 	POISSON_TIMES[:,0] = np.maximum(MIN_UPDATE_TIME, POISSON_TIMES[:,0])
 	UPDATE_TIMES = {k:list(v) for k,v in enumerate(np.cumsum(POISSON_TIMES, axis=1))}
 
@@ -189,7 +193,7 @@ def simulation(NUM_AGENTS=1250,
 		GAMBLE_OBSERVED_SAMPLES[step] = returns
 
 		# update agent wealth
-		WEALTH[step+1] = np.multiply(invested_wealth[:,np.newaxis], PORTFOLIOS) @ returns
+		WEALTH[step+1] = np.minimum(1e9, np.multiply(invested_wealth[:,np.newaxis], PORTFOLIOS) @ returns)
 
 	return WEALTH, CONSUMPTION, ATTENTION, RISK_AVERSION, ALL_PORTFOLIOS, UPDATE_TIMES, communities, GAMBLE_OBSERVED_SAMPLES
 

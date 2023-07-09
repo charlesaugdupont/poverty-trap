@@ -17,16 +17,26 @@ if __name__ == "__main__":
 
 	# problem definition
 	PROBLEM = {
-		"num_vars" : 3,
-		"names"    : ["project_cost", "rr", "alpha_beta"],
+		"num_vars" : 7,
+		"names"    : ["project_cost", 
+					  "gain_right", 
+					  "alpha_beta", 
+					  "prob_left", 
+					  "init_w_scale", 
+					  "risk_scale", 
+					  "poisson_scale"],
 		"bounds"   : [[0.10, 3.00],
 					  [1.70, 2.00],
-					  [0.70, 0.80]]
+					  [0.70, 0.80],
+					  [0.30, 0.50],
+					  [0.01, 0.15],
+					  [1.00, 8.00],
+					  [8.00, 20.00]]
 	}
 
 	# generate Saltelli samples
-	NUM_SAMPLES = 256
-	X = sobol.sample(PROBLEM, NUM_SAMPLES)
+	NUM_SAMPLES = 1024
+	X = sobol.sample(PROBLEM, NUM_SAMPLES, calc_second_order=False)
 	L = int(X.shape[0]/128)
 	X = X[idx*L:(idx+1)*L]
 
@@ -35,9 +45,9 @@ if __name__ == "__main__":
 	# run experiments
 	for iter_idx, row in enumerate(X):
 		W, C, A, R, P, T, communities, G = simulation (
-			NUM_AGENTS=1250, STEPS=50, seed=SEED, PROJECT_COST=row[0], RR=row[1], ALPHA_BETA=row[2]
+			NUM_AGENTS=1250, STEPS=50, seed=SEED, PROJECT_COST=row[0], gain_right=row[1], ALPHA_BETA=row[2], prob_left=row[3]
 		)
-		with open(output_dir + f"/{row[0]}_{row[1]}_{row[2]}.pickle", "wb") as f:
+		with open(output_dir + f"/{row[0]}_{row[1]}_{row[2]}_{row[3]}.pickle", "wb") as f:
 			pickle.dump({
 				"W":W.astype(np.float32),
 				"C":C.astype(np.float32),
