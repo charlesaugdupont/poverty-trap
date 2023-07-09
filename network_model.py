@@ -118,7 +118,7 @@ def simulation(NUM_AGENTS=1250,
 
 	# extract communities
 	communities = get_communities(G)
-	print(f"{len(communities)} communities.")
+	#print(f"{len(communities)} communities.")
 
 	# get community membership of each agent
 	community_membership = get_community_membership(G, communities)
@@ -146,23 +146,22 @@ def simulation(NUM_AGENTS=1250,
 	WEALTH = np.zeros((STEPS+1, NUM_AGENTS))
 	WEALTH[0,:] = 1
 	ATTENTION = np.random.uniform(size=NUM_AGENTS)
-	RISK_AVERSION = np.random.uniform(0, 100, size=(NUM_AGENTS))      # TODO: INVESTIGATE THIS
+	RISK_AVERSION = np.random.randint(0, 100, size=(NUM_AGENTS))
 
 	# generate some Poisson distributed portfolio update times (first time is at least 3)
-	MIN_UPDATE_TIME  = 3
-	MEAN_UPDATE_TIME = 10
+	MIN_UPDATE_TIME  = 5
+	MEAN_UPDATE_TIME = 12
 	POISSON_TIMES = np.random.poisson(MEAN_UPDATE_TIME, size=(NUM_AGENTS, 6))
 	POISSON_TIMES[:,0] = np.maximum(MIN_UPDATE_TIME, POISSON_TIMES[:,0])
-	UPDATE_TIMES = {k:set(v) for k,v in enumerate(np.cumsum(POISSON_TIMES, axis=1))}
+	UPDATE_TIMES = {k:list(v) for k,v in enumerate(np.cumsum(POISSON_TIMES, axis=1))}
 
 	# initialize portfolios and compute expected returns for each agent
 	PORTFOLIOS = initialize_portfolios(NUM_AGENTS, len(communities)+1, GAMBLES_PRIOR_MU, GAMBLES_PRIOR_COV, RISK_AVERSION, community_membership)
 	AGENT_EXPECTED_RETURNS = [PORTFOLIOS[i][community_membership[i]] * GAMBLES_PRIOR_MU[community_membership[i]] for i in range(NUM_AGENTS)]
 	ALL_PORTFOLIOS = {i:[PORTFOLIOS[i][community_membership[i]]] for i in range(NUM_AGENTS)}
 
-
 	# RUN SIMULATION
-	print("Performing time stepping...")
+	#print("Performing time stepping...")
 	for step in range(STEPS):
 
 		# check for portfolio updates
