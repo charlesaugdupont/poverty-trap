@@ -13,6 +13,9 @@ import random
 # Network Construction
 
 def build_graph(n, graph_type, graph_args):
+	"""
+	Constructs networkx graph.
+	"""
 	if graph_type == "powerlaw_cluster":
 		G = nx.powerlaw_cluster_graph(n=n, **graph_args) 
 	elif graph_type == "random_regular_graph":
@@ -22,6 +25,9 @@ def build_graph(n, graph_type, graph_args):
 
 
 def get_adjacency(G):
+	"""
+	Constructs adjacency dictionary.
+	"""
 	return dict((n, set(nbrdict.keys())) for n, nbrdict in G.adjacency())
 
 #################################################################################################
@@ -29,10 +35,16 @@ def get_adjacency(G):
 # Communities
 
 def get_communities(G):
+	"""
+	Extracts communities from networkx graph using label propagation.
+	"""
 	return list(nx.community.label_propagation_communities(G))
  
 
 def get_node_community_map(communities):
+	"""
+	Constructs a mapping from each node to the community index it is part of.
+	"""
 	node_community_map = {}
 	for i,c in enumerate(communities):
 		for node in c:
@@ -40,15 +52,18 @@ def get_node_community_map(communities):
 	return node_community_map
 
 
-def get_community_membership(G, communities):
-	adjacency = get_adjacency(G)
+def get_community_membership(G, communities, adjacency):
+	"""
+	Constructs a mapping from each node to multiple community indices
+	(including the one it is a part of, and the ones its neighbors are part of).
+	"""
+	L = len(communities)
 	node_community_map = get_node_community_map(communities)
-	membership = {i:set() for i in node_community_map}
+	membership = {i:{node_community_map[i], L} for i in node_community_map}
 	for i, neighbours in adjacency.items():
 		for n in neighbours:
 			membership[i].add(node_community_map[n])
-		membership[i].add(node_community_map[i])
-	membership = {k:np.array(list(v)+[len(communities)]) for k,v in membership.items()}
+	membership = {k:np.array(list(v)) for k,v in membership.items()}
 	return membership
 
 #################################################################################################
@@ -57,7 +72,7 @@ def get_community_membership(G, communities):
 
 def generate_gambles(N, gain_right_bound, prob_left=0.3):
 	"""
-	Generate N gambles with 2 outcomes.
+	Generate N gambles with 2 outcomes each.
 	"""
 	probs     = np.random.uniform(prob_left, 1-prob_left, N)
 	outcomes1 = np.random.uniform(0.90, 0.95, N)
@@ -73,6 +88,9 @@ def generate_gambles(N, gain_right_bound, prob_left=0.3):
 
 
 def get_gamble_returns(P, size):
+	"""
+	Generates some random gamble returns based on their outcomes and branch probabilities.
+	"""
 	return np.random.choice(P["outcomes"], p=P["probs"], size=size)
 
 #################################################################################################
@@ -93,6 +111,7 @@ def simulation(NUM_AGENTS=1250,
 			   seed=None,
 			   communities=None,
 			   community_membership=None,
+			   adjacency=None,
 			   graph=None,
 			   graph_type="powerlaw_cluster", 
 			   graph_args={"m":2, "p":0.5}):
@@ -117,19 +136,18 @@ def simulation(NUM_AGENTS=1250,
 		graph_type    	     : type of graph
 		graph_args    	     : arguments for graph construction, specific to graph_type
 	"""
+	# RNG
 	if seed:
 		random.seed(seed)
 		np.random.seed(seed)
 
-	# construct graph and adjacency matrix
+	# construct graph
 	G = graph or build_graph(NUM_AGENTS, graph_type, graph_args)
 
-	# extract communities
+	# extract communities and community membership
 	communities = communities or get_communities(G)
-	#print(f"{len(communities)} communities.")
-
-	# get community membership of each agent
-	community_membership = community_membership or get_community_membership(G, communities)
+	adjacency = adjacency or get_adjacency(G)
+	community_membership = community_membership or get_community_membership(G, communities, adjacency)
 
 	# generate random gambles and append safe asset
 	GAMBLES = generate_gambles(len(communities), gain_right_bound=gain_right, prob_left=prob_left)
