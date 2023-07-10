@@ -52,12 +52,13 @@ def get_node_community_map(communities):
 	return node_community_map
 
 
-def get_community_membership(G, communities, adjacency):
+def get_community_membership(G, communities):
 	"""
 	Constructs a mapping from each node to multiple community indices
 	(including the one it is a part of, and the ones its neighbors are part of).
 	"""
 	L = len(communities)
+	adjacency = get_adjacency(G)
 	node_community_map = get_node_community_map(communities)
 	membership = {i:{node_community_map[i], L} for i in node_community_map}
 	for i, neighbours in adjacency.items():
@@ -111,7 +112,6 @@ def simulation(NUM_AGENTS=1250,
 			   seed=None,
 			   communities=None,
 			   community_membership=None,
-			   adjacency=None,
 			   graph=None,
 			   graph_type="powerlaw_cluster", 
 			   graph_args={"m":2, "p":0.5}):
@@ -146,8 +146,7 @@ def simulation(NUM_AGENTS=1250,
 
 	# extract communities and community membership
 	communities = communities or get_communities(G)
-	adjacency = adjacency or get_adjacency(G)
-	community_membership = community_membership or get_community_membership(G, communities, adjacency)
+	community_membership = community_membership or get_community_membership(G, communities)
 
 	# generate random gambles and append safe asset
 	GAMBLES = generate_gambles(len(communities), gain_right_bound=gain_right, prob_left=prob_left)
