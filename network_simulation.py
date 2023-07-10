@@ -81,4 +81,4 @@ if __name__ == "__main__":
 					"seed":SEED
 				}, f)
 		
-	print(f"JOB {idx} : completed {L} runs in {(time.time() - start_time)/60:.3f} minutes.")
+		print(f"JOB {idx} : finished param {iter_idx+1} at t = {(time.time() - start_time)/60:.0f} mins")
