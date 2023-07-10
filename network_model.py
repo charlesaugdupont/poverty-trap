@@ -160,14 +160,14 @@ def simulation(NUM_AGENTS=1250,
 	GAMBLE_RANDOM_RETURNS = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in GAMBLES]])
 
 	# array to keep track of actual empirical gamble returns
-	GAMBLE_OBSERVED_SAMPLES = np.zeros((STEPS, len(GAMBLES)))
+	GAMBLE_OBSERVED_SAMPLES = np.zeros((STEPS, len(GAMBLES)), dtype=np.float16)
 
 	# agent attributes
-	CONSUMPTION = np.zeros((STEPS, NUM_AGENTS))
-	WEALTH = np.zeros((STEPS+1, NUM_AGENTS))
+	CONSUMPTION = np.zeros((STEPS, NUM_AGENTS), dtype=np.float16)
+	WEALTH = np.zeros((STEPS+1, NUM_AGENTS), dtype=np.float16)
 	WEALTH[0,:] = np.random.normal(1, init_wealth_scale, size=NUM_AGENTS)
-	ATTENTION = np.random.uniform(size=NUM_AGENTS).astype(np.float32)
-	RISK_AVERSION = np.random.uniform(20 - risk_scale, 20 + risk_scale, size=(NUM_AGENTS)).astype(np.float32)
+	ATTENTION = np.random.uniform(size=NUM_AGENTS).astype(np.float16)
+	RISK_AVERSION = np.random.uniform(20 - risk_scale, 20 + risk_scale, size=(NUM_AGENTS)).astype(np.float16)
 
 	# generate some Poisson distributed portfolio update times
 	POISSON_TIMES = np.random.poisson(poisson_scale, size=(NUM_AGENTS, 12))
@@ -193,8 +193,7 @@ def simulation(NUM_AGENTS=1250,
 					comm_mem = community_membership[i]
 					portfolio_update(i, comm_mem, RISK_AVERSION[i], ATTENTION[i], MU[comm_mem],
 		      						 COV[comm_mem,:][:,comm_mem], GAMBLES_PRIOR_MU[comm_mem],
-								     AGENT_EXPECTED_RETURNS, PORTFOLIOS)
-					ALL_PORTFOLIOS[i].append(PORTFOLIOS[i][comm_mem])
+								     AGENT_EXPECTED_RETURNS, PORTFOLIOS, ALL_PORTFOLIOS)
 
 		# agents choose consumption, and we compute contributions to each project
 		expected_returns = np.array([sum(AGENT_EXPECTED_RETURNS[i]) for i in range(NUM_AGENTS)])
@@ -205,16 +204,16 @@ def simulation(NUM_AGENTS=1250,
 		# get gamble returns
 		successful_gambles = project_contributions >= PROJECT_COST
 		successful_gambles[-1] = True # safe asset has guaranteed return
-		returns = successful_gambles * GAMBLE_RANDOM_RETURNS[:,step]
+		returns = (successful_gambles * GAMBLE_RANDOM_RETURNS[:,step]).astype(np.float16)
 		GAMBLE_OBSERVED_SAMPLES[step] = returns
 
 		# update agent wealth
-		WEALTH[step+1] = np.minimum(1e9, np.multiply(invested_wealth[:,np.newaxis], PORTFOLIOS) @ returns)
+		WEALTH[step+1] = np.minimum(6e4, np.multiply(invested_wealth[:,np.newaxis], PORTFOLIOS) @ returns)
 
-	return WEALTH, CONSUMPTION, ATTENTION, RISK_AVERSION, ALL_PORTFOLIOS, UPDATE_TIMES, communities, GAMBLE_OBSERVED_SAMPLES
+	return WEALTH, ATTENTION, RISK_AVERSION, ALL_PORTFOLIOS, UPDATE_TIMES, communities, GAMBLE_OBSERVED_SAMPLES
 
-
-def portfolio_update(i, community_membership, risk_aversion, attention, mu, cov, gambles_prior_mu, AGENT_EXPECTED_RETURNS, PORTFOLIOS):
+def portfolio_update(i, community_membership, risk_aversion, attention, mu, cov, 
+		     		 gambles_prior_mu, AGENT_EXPECTED_RETURNS, PORTFOLIOS, ALL_PORTFOLIOS):
 	"""
 	Update an agent's portfolio and expected portfolio return.
 	"""
@@ -225,9 +224,11 @@ def portfolio_update(i, community_membership, risk_aversion, attention, mu, cov,
 	optimizer.solve()
 
 	# update portfolio
+	updated_portfolio = (1-attention)*ALL_PORTFOLIOS[i][0] + attention*optimizer.weight_sols
+	ALL_PORTFOLIOS[i].append(updated_portfolio)
 	NEW_PORTFOLIO = np.zeros(PORTFOLIOS.shape[1])
-	NEW_PORTFOLIO[community_membership] = optimizer.weight_sols
-	PORTFOLIOS[i] = (1-attention)*PORTFOLIOS[i] + attention*NEW_PORTFOLIO
+	NEW_PORTFOLIO[community_membership] = updated_portfolio
+	PORTFOLIOS[i] = NEW_PORTFOLIO
 
 	# update expected portfolio return
 	updated_mu = (1-attention)*gambles_prior_mu + attention*mu

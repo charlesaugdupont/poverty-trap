@@ -1,5 +1,6 @@
 import sys
 import time
+import lzma
 import pickle
 from network_model import *
 from SALib.sample import sobol
@@ -50,7 +51,7 @@ if __name__ == "__main__":
 		# 10 repetitions to capture stochastic effects
 		for rep_idx, SEED in enumerate([1, 2, 3, 5, 8, 13, 21, 34, 55, 89]):
 
-			W, C, A, R, P, T, communities, G = simulation (
+			W, A, R, P, T, _, G = simulation (
 				graph=graph,
 				communities=communities,
 				community_membership=community_membership,
@@ -67,18 +68,15 @@ if __name__ == "__main__":
 			)
 
 			# store results
-			with open(output_dir + f"/{rep_idx}_{idx*L + iter_idx + 1}.pickle", "wb") as f:
-				pickle.dump({
-					"W":W.astype(np.float32),
-					"C":C.astype(np.float32),
-					"A":A,
-					"R":R,
-					"P":P,
-					"T":np.array(list(T.values())).astype(np.int8),
-					"communities":communities,
-					"G":G.astype(np.float32),
-					"params":tuple(row),
-					"seed":SEED
-				}, f)
-		
+			data = {
+				"W":W,
+				"A":A,
+				"R":R,
+				"P":P,
+				"T":np.array(list(T.values())).astype(np.int16),
+				"G":G,
+				"params":tuple(row),
+			}
+			pickle.dump(data, lzma.open(output_dir + f"/{rep_idx}_{idx*L + iter_idx + 1}.pkl.lzma", 'wb'))
+
 		print(f"JOB {idx} : finished param {iter_idx+1} at t = {(time.time() - start_time)/60:.0f} mins")
