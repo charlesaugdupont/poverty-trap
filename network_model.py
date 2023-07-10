@@ -91,28 +91,31 @@ def simulation(NUM_AGENTS=1250,
 			   poisson_scale=12,
 			   NUM_GAMBLE_SAMPLES=1000, 
 			   seed=None,
+			   communities=None,
+			   community_membership=None,
 			   graph=None,
 			   graph_type="powerlaw_cluster", 
 			   graph_args={"m":2, "p":0.5}):
 	"""
 	Runs ABM model.
 	Args:
-		NUM_AGENTS    	   : number of agents
-		STEPS         	   : number of steps
-		SAFE_RETURN   	   : safe return coefficient (> 1.0)
-		PROJECT_COST  	   : minimum cost for project to be undertaken
-		gain_right		   : right bound for generating gamble gains
-		prob_left 		   : left uniform bound for generating gamble branch probabilities
-		ALPHA			   : production function parameter used to compute optimal consumption
-		BETA               : time discounting factor used to compute optimal consumption
-		NUM_GAMBLE_SAMPLES : number of random samples for cumulative prospect theory utility
-		seed			   : random seed
-		graph 		  	   : NetworkX graph
-		graph_type    	   : type of graph
-		graph_args    	   : arguments for graph construction, specific to graph_type
-	Returns:
-		WEALTH      : (STEPS, NUM_AGENTS) array containing wealth levels of agents at each iteration
-		communities : dict from community ID to list of members
+		NUM_AGENTS    	     : number of agents
+		STEPS         	     : number of steps
+		SAFE_RETURN   	     : safe return coefficient (> 1.0)
+		PROJECT_COST  	     : minimum cost for project to be undertaken
+		gain_right		     : right bound for generating gamble gains
+		ALPHA_BETA		     : constant used to compute optimal consumption
+		prob_left 		     : left uniform bound for generating gamble branch probabilities
+		init_wealth_scale    : standard deviation for initial wealth distribution
+		risk_scale           : uniform spread for risk aversion distribution
+		poisson_scale        : mean time between portfolio updates
+		NUM_GAMBLE_SAMPLES   : number of random samples for cumulative prospect theory utility
+		seed			     : random seed
+		communities  	   	 : graph communities
+		community_membership : mapping from node to communities it is a part of
+		graph 		  	     : NetworkX graph
+		graph_type    	     : type of graph
+		graph_args    	     : arguments for graph construction, specific to graph_type
 	"""
 	if seed:
 		random.seed(seed)
@@ -122,11 +125,11 @@ def simulation(NUM_AGENTS=1250,
 	G = graph or build_graph(NUM_AGENTS, graph_type, graph_args)
 
 	# extract communities
-	communities = get_communities(G)
+	communities = communities or get_communities(G)
 	#print(f"{len(communities)} communities.")
 
 	# get community membership of each agent
-	community_membership = get_community_membership(G, communities)
+	community_membership = community_membership or get_community_membership(G, communities)
 
 	# generate random gambles and append safe asset
 	GAMBLES = generate_gambles(len(communities), gain_right_bound=gain_right, prob_left=prob_left)

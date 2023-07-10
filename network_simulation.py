@@ -11,8 +11,11 @@ if __name__ == "__main__":
 	output_dir = sys.argv[1]
 	idx = int(sys.argv[2]) - 1
 
+	# load graph, and extract communities, community_membership
 	with open("graph.pickle", "rb") as f:
 		graph = pickle.load(f)
+	communities = get_communities(graph)
+	community_membership = get_community_membership(graph, communities)
 
 	# problem definition
 	PROBLEM = {
@@ -49,6 +52,8 @@ if __name__ == "__main__":
 
 			W, C, A, R, P, T, communities, G = simulation (
 				graph=graph,
+				communities=communities,
+				community_membership=community_membership,
 				NUM_AGENTS=1250,
 				STEPS=50,
 				seed=SEED,
@@ -60,6 +65,8 @@ if __name__ == "__main__":
 			   	risk_scale=row[5],
 			   	poisson_scale=row[6]
 			)
+
+			# store results
 			with open(output_dir + f"/{rep_idx}_{idx*L + iter_idx + 1}.pickle", "wb") as f:
 				pickle.dump({
 					"W":W.astype(np.float32),
@@ -69,7 +76,9 @@ if __name__ == "__main__":
 					"P":P,
 					"T":np.array(list(T.values())).astype(np.int8),
 					"communities":communities,
-					"G":G.astype(np.float32)
+					"G":G.astype(np.float32),
+					"params":tuple(row),
+					"seed":SEED
 				}, f)
 		
 	print(f"JOB {idx} : completed {L} runs in {(time.time() - start_time)/60:.3f} minutes.")
