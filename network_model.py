@@ -204,9 +204,7 @@ def simulation(NUM_AGENTS=1250,
 
 		# get gamble returns
 		successful_gambles = project_contributions >= PROJECT_COST
-
-		# safe asset has guaranteed return
-		successful_gambles[-1] = True
+		successful_gambles[-1] = True # safe asset has guaranteed return
 		returns = successful_gambles * GAMBLE_RANDOM_RETURNS[:,step]
 		GAMBLE_OBSERVED_SAMPLES[step] = returns
 
