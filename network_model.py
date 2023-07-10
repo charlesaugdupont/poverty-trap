@@ -144,17 +144,17 @@ def simulation(NUM_AGENTS=1250,
 	communities = communities or get_communities(G)
 	community_membership = community_membership or get_community_membership(G, communities)
 
-	# generate random gambles and append safe asset
+	# generate a random gamble for each communitiy and append safe asset "gamble"
 	GAMBLES = generate_gambles(len(communities), gain_right_bound=gain_right, prob_left=prob_left)
 	GAMBLES.append({"outcomes":[SAFE_RETURN, 0.0], "probs":[1.0, 0.0]})
 
-	# generate some prior samples, and compute mean and covariance
+	# generate some prior samples, compute mean and covariance
 	GAMBLE_PRIOR_SAMPLES = np.zeros((NUM_GAMBLE_SAMPLES, len(GAMBLES)))
 	for i,g in enumerate(GAMBLES):
 		GAMBLE_PRIOR_SAMPLES[:,i] = np.random.choice(g["outcomes"], NUM_GAMBLE_SAMPLES, p=g["probs"])
 	GAMBLES_PRIOR_MU  = np.mean(GAMBLE_PRIOR_SAMPLES, axis=0)
 	GAMBLES_PRIOR_COV = np.cov(GAMBLE_PRIOR_SAMPLES, rowvar=False)	
-	assert SAFE_RETURN <= np.min(GAMBLES_PRIOR_MU[:-1])
+	assert SAFE_RETURN <= np.min(GAMBLES_PRIOR_MU)
 
 	# generate some random gamble returns
 	GAMBLE_RANDOM_RETURNS = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in GAMBLES]])
@@ -169,10 +169,8 @@ def simulation(NUM_AGENTS=1250,
 	ATTENTION = np.random.uniform(size=NUM_AGENTS).astype(np.float32)
 	RISK_AVERSION = np.random.uniform(20 - risk_scale, 20 + risk_scale, size=(NUM_AGENTS)).astype(np.float32)
 
-	# generate some Poisson distributed portfolio update times (first time is at least 3)
-	MIN_UPDATE_TIME = 5
+	# generate some Poisson distributed portfolio update times
 	POISSON_TIMES = np.random.poisson(poisson_scale, size=(NUM_AGENTS, 12))
-	POISSON_TIMES[:,0] = np.maximum(MIN_UPDATE_TIME, POISSON_TIMES[:,0])
 	UPDATE_TIMES = {k:list(v) for k,v in enumerate(np.cumsum(POISSON_TIMES, axis=1))}
 
 	# initialize portfolios and compute expected returns for each agent
@@ -181,15 +179,16 @@ def simulation(NUM_AGENTS=1250,
 	ALL_PORTFOLIOS = {i:[PORTFOLIOS[i][community_membership[i]]] for i in range(NUM_AGENTS)}
 
 	# RUN SIMULATION
-	#print("Performing time stepping...")
 	for step in range(STEPS):
 
-		# check for portfolio updates
-		if step >= MIN_UPDATE_TIME:
+		# check for portfolio updates after a "burn-in" period of 5 steps
+		if step >= 5:
 			recent_samples = GAMBLE_OBSERVED_SAMPLES[:step,:]
 			MU  = np.mean(recent_samples, axis=0)
 			COV = np.cov(recent_samples, rowvar=False)
+			
 			for i in range(NUM_AGENTS):
+				# check if agent needs to be updated at current step
 				if step in UPDATE_TIMES[i]:
 					comm_mem = community_membership[i]
 					portfolio_update(i, comm_mem, RISK_AVERSION[i], ATTENTION[i], MU[comm_mem],
@@ -218,16 +217,23 @@ def simulation(NUM_AGENTS=1250,
 
 
 def portfolio_update(i, community_membership, risk_aversion, attention, mu, cov, gambles_prior_mu, AGENT_EXPECTED_RETURNS, PORTFOLIOS):
-	NEW_PORTFOLIO = np.zeros(PORTFOLIOS.shape[1])
+	"""
+	Update an agent's portfolio and expected portfolio return.
+	"""
+	# solve portfolio optimization
 	optimizer = Optimizer(mu, cov)
 	optimizer.add_objective("efficient_frontier", aversion=risk_aversion)
 	optimizer.add_constraint("weight", weight_bound=(0,1), leverage=1)
 	optimizer.solve()
+
+	# update portfolio
+	NEW_PORTFOLIO = np.zeros(PORTFOLIOS.shape[1])
 	NEW_PORTFOLIO[community_membership] = optimizer.weight_sols
-	AGENT_EXPECTED_RETURNS[i] = (1-attention)*gambles_prior_mu*PORTFOLIOS[i][community_membership] + \
-								attention*mu*NEW_PORTFOLIO[community_membership]
 	PORTFOLIOS[i] = (1-attention)*PORTFOLIOS[i] + attention*NEW_PORTFOLIO
 
+	# update expected portfolio return
+	updated_mu = (1-attention)*gambles_prior_mu + attention*mu
+	AGENT_EXPECTED_RETURNS[i] = updated_mu * PORTFOLIOS[i][community_membership]	
 
 def initialize_portfolios(NUM_AGENTS, num_projects, mu, cov, risk_aversion, community_membership):
 	INITIAL_PORTFOLIOS = np.zeros((NUM_AGENTS, num_projects))
