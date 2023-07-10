@@ -1,11 +1,7 @@
+import random
 import numpy as np
 import networkx as nx
-
 from pymarkowitz import Optimizer
-
-import random
-
-#from tqdm import tqdm
 
 
 #################################################################################################
@@ -70,20 +66,20 @@ def get_community_membership(G, communities):
 #################################################################################################
 
 # Gambles
-
-def generate_gambles(N, gain_right_bound, prob_left=0.3):
+def generate_gambles(N, gain_right_bound, prob_left):
 	"""
 	Generate N gambles with 2 outcomes each.
 	"""
-	probs     = np.random.uniform(prob_left, 1-prob_left, N)
+	loss_probs = np.random.uniform(prob_left, 1-prob_left, N)
+	gain_probs = 1 - loss_probs
 	outcomes1 = np.random.uniform(0.90, 0.95, N)
 	outcomes2 = np.random.uniform(1.6, gain_right_bound, N)
 
 	gambles = []
 	for i in range(N):
 		gambles.append({
-			"outcomes" : [outcomes1[i],outcomes2[i]],
-			"probs"    : [probs[i], 1-probs[i]]
+			"outcomes" : [outcomes1[i], outcomes2[i]],
+			"probs"    : [loss_probs[i], gain_probs[i]]
 		})
 	return gambles
 
@@ -102,8 +98,8 @@ def simulation(NUM_AGENTS=1250,
 	       	   STEPS=50,
 			   SAFE_RETURN=1.10,
 			   PROJECT_COST=3.0,  
-			   gain_right=1.7, 
 			   ALPHA_BETA=0.8,
+			   gain_right=1.7, 
 			   prob_left=0.3,
 			   init_wealth_scale=0.02,
 			   risk_scale=4.00,
