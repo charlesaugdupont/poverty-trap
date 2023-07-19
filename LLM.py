@@ -12,7 +12,7 @@ if __name__ == "__main__":
 	seed = int(sys.argv[2]) - 1
 
 	# load results for specified seed
-	results = pickle.load(lzma.open("../concat_W_arrays/{seed}_9216_1250_51.pkl.lzma"))
+	results = pickle.load(lzma.open(f"../concat_W_arrays/{seed}_9216_1250_51.pkl.lzma"))
 
 	n_param_combos = results.shape[0]
 	n_steps = results.shape[2]
