@@ -17,7 +17,7 @@ mkdir "$TMPDIR"/LLM_communities &
 
 # Start jobs
 for i in `seq 1 $SLURM_NTASKS`; do
-	srun --ntasks=1 --nodes=1 --cpus-per-task=1 --mem-per-cpu=2G python -W ignore llm_communities.py "$TMPDIR"/LLM_communities $i &
+	srun --ntasks=1 --nodes=1 --cpus-per-task=1 --mem-per-cpu=4G python -W ignore llm_communities.py "$TMPDIR"/LLM_communities $i &
 done
 wait
 
