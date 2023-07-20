@@ -30,10 +30,7 @@ if __name__ == "__main__":
 	# go through all seed results
 	for seed in range(10):
 		lambda_fit_results = {c:{} for c in target_communities}
-
-		#results = pickle.load(lzma.open(f"../concat_W_arrays/{seed}_9216_1250_51.pkl.lzma"))
-		results = pickle.load(lzma.open(f"data/sobol/concat_W_arrays//{seed}_9216_1250_51.pkl.lzma"))
-
+		results = pickle.load(lzma.open(f"../concat_W_arrays/{seed}_9216_1250_51.pkl.lzma"))
 		n_param_combos = results.shape[0]
 		n_steps = results.shape[2]
 		n_lambdas = 4
