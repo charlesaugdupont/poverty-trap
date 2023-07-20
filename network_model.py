@@ -14,7 +14,7 @@ def build_graph(n, graph_type, graph_args):
 	"""
 	if graph_type == "powerlaw_cluster":
 		G = nx.powerlaw_cluster_graph(n=n, **graph_args) 
-	elif graph_type == "random_regular_graph":
+	elif graph_type == "random":
 		G = nx.random_regular_graph(n=n, **graph_args)
 	assert nx.is_connected(G)
 	return G
