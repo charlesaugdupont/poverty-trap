@@ -7,7 +7,7 @@ from abc import abstractmethod
 import cvxpy as cp
 import numpy as np
 
-from cptopt.utility import CPTUtility
+from cpt_utility import CPTUtility
 
 from scipy.optimize import minimize
 
