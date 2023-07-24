@@ -10,7 +10,7 @@ if __name__ == "__main__":
 	output_dir = sys.argv[1]
 	SEED = int(sys.argv[2]) - 1
 
-	W_arrays = {f'{i}':{} for i in range(10)}
+	W_arrays = {f'{SEED}':{}}
 	for f in os.listdir(f"../model_runs_cpt_{SEED}/"):
 		data = pickle.load(lzma.open(f"../model_runs_cpt_{SEED}/{f}"))
 		seed, param = f.split(".")[0].split("_")
