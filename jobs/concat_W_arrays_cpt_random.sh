@@ -16,7 +16,7 @@ mkdir "$TMPDIR"/concat_W_arrays_cpt_random &
 
 # Start jobs
 for i in `seq 1 $SLURM_NTASKS`; do
-	srun --ntasks=1 --nodes=1 --cpus-per-task=1 --mem-per-cpu=4G python -W ignore concat_W_arrays_cpt.py "$TMPDIR"/concat_W_arrays_cpt_random $i &
+	srun --ntasks=1 --nodes=1 --cpus-per-task=1 --mem-per-cpu=4G python -W ignore concat_W_arrays_cpt_random.py "$TMPDIR"/concat_W_arrays_cpt_random $i &
 done
 wait
 
