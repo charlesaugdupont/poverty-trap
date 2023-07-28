@@ -233,7 +233,10 @@ def portfolio_update(i, utility, gamble_returns, community_membership, attention
 		PORTFOLIOS			   : dictionary from agent index to current agent portfolio
 		ALL_PORTFOLIOS		   : dictionary from agent index to historical list of agent's portfolios
 	"""
+	# initialize new empty portfolio 
 	NEW_PORTFOLIO = np.zeros(PORTFOLIOS.shape[1])
+
+	# instantiate optimizer with the CPT utility
 	mv = MeanVarianceFrontierOptimizer(utility)
 	reps = 0
 	while mv._weights is None:
@@ -243,10 +246,13 @@ def portfolio_update(i, utility, gamble_returns, community_membership, attention
 			mv._weights = ALL_PORTFOLIOS[i][-1]
 			break
 		else:
+			# if optimization fails, retry up to 30 times
 			try:
 				mv.optimize(gamble_returns-1)
 			except:
 				continue
+	
+	# construct updated portfolio using attention mechanism
 	updated_portfolio = (1-attention)*ALL_PORTFOLIOS[i][0] + attention*mv.weights
 	ALL_PORTFOLIOS[i].append(updated_portfolio)
 	NEW_PORTFOLIO = np.zeros(PORTFOLIOS.shape[1])
