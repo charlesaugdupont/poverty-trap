@@ -17,7 +17,7 @@ if __name__ == "__main__":
 		W_arrays[seed][param] = data["W"]
 
 	for seed_idx, seed in enumerate(W_arrays):
-		W_SEED = np.zeros((9216, 1250, 51), dtype=np.float16)
+		W_SEED = np.zeros((8192, 1250, 51), dtype=np.float16)
 		param_W = W_arrays[seed]
 		keys = list(param_W.keys())
 		sorted_param_keys = sorted([int(x) for x in keys])
