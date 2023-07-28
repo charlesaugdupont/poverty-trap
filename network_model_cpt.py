@@ -219,6 +219,20 @@ def simulation(NUM_AGENTS=1250,
 
 def portfolio_update(i, utility, gamble_returns, community_membership, attention, mu, 
 		     		 gambles_prior_mu, AGENT_EXPECTED_RETURNS, PORTFOLIOS, ALL_PORTFOLIOS):
+	"""
+	Update an agent's portfolio and expected portfolio return.
+	Args:
+		i					   : agent index
+		utility				   : cumulative prospect theory utility of the agent
+		gamble_returns		   : array of observed project returns relevant to the agent; shape is (num steps so far, # projects)
+		community_membership   : array of indices of the communities that the agent is a part of
+		attention			   : agent attention parameter
+		mu 					   : mean vector of observed project returns
+		gambles_prior_mu	   : mean vector of prior project samples
+		AGENT_EXPECTED_RETURNS : vector of expected portfolio return for all agents
+		PORTFOLIOS			   : dictionary from agent index to current agent portfolio
+		ALL_PORTFOLIOS		   : dictionary from agent index to historical list of agent's portfolios
+	"""
 	NEW_PORTFOLIO = np.zeros(PORTFOLIOS.shape[1])
 	mv = MeanVarianceFrontierOptimizer(utility)
 	reps = 0
@@ -244,53 +258,18 @@ def portfolio_update(i, utility, gamble_returns, community_membership, attention
 	AGENT_EXPECTED_RETURNS[i] = updated_mu * PORTFOLIOS[i][community_membership]
 
 def initialize_portfolios(NUM_AGENTS, num_projects, UTILITIES, GAMBLE_SAMPLES, community_membership):
+	"""
+	Initializes all agents' portfolios.
+	Args:
+		NUM_AGENTS 	 		 : number of agents
+		num_projects 		 : number of projects
+		UTILITIES			 : list of agent CPT utility functions
+		GAMBLE_SAMPLES 		 : array of prior project samples; shape is (1000, num_projects)
+		community_membership : dictionary from agent index to array of indices of the communities that the agent is a part of
+	"""
 	INITIAL_PORTFOLIOS = np.zeros((NUM_AGENTS, num_projects))
 	for i in range(NUM_AGENTS):
 		mv = MeanVarianceFrontierOptimizer(UTILITIES[i])
 		mv.optimize(GAMBLE_SAMPLES[:,community_membership[i]]-1)
 		INITIAL_PORTFOLIOS[i][community_membership[i]] = mv.weights
 	return INITIAL_PORTFOLIOS
-
-#################################################################################################
-
-# Utilities and Metrics
-
-def count_crossover_points(W, communities=None):
-	"""
-	Count number of crossover points at agent or community level.
-	Args:
-		W           : (STEPS, NUM_AGENTS) array
-		communities : dict from community ID to list of members (community level if this is provided)
-	Returns:
-		number of crossover points.
-	"""
-	# communities is specified, so count crossover points at community-level
-	if communities:
-		crossover_points = {c:0 for c in range(len(communities))}
-		for c, agent_list in communities.items():
-			trajectory = np.mean(W[:,agent_list], axis=1)
-			for i in range(len(trajectory)-2):
-				if (trajectory[i+1] - trajectory[i] > 0 and trajectory[i+2] - trajectory[i+1] < 0) or \
-				   (trajectory[i+1] - trajectory[i] < 0 and trajectory[i+2] - trajectory[i+1] > 0):
-						crossover_points[c] += 1
-
-	# otherwise count at agent level
-	else:
-		num_agents = W.shape[1]
-		crossover_points = {a:0 for a in range(num_agents)}
-		for a in range(num_agents):
-			trajectory = W[:,a]
-			for i in range(len(trajectory)-2):
-				if (trajectory[i+1] - trajectory[i] > 0 and trajectory[i+2] - trajectory[i+1] < 0) or \
-				   (trajectory[i+1] - trajectory[i] < 0 and trajectory[i+2] - trajectory[i+1] > 0):
-						crossover_points[a] += 1
-
-	return crossover_points
-
-
-def get_community_income(I, communities):
-	return [np.mean(I[-1][communities[c]]) for c in communities]
-
-
-def get_community_wealth(W, communities):
-	return [np.mean(W[-1][communities[c]]) for c in communities]
