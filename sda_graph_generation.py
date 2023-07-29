@@ -60,10 +60,9 @@ if __name__ == "__main__":
 	NUM_SAMPLES = 1024
 	X = sobol.sample(PROBLEM, NUM_SAMPLES, calc_second_order=False)
 
-	unique_w_scales = set(X[:,4])
-	GRAPHS = {}
+	unique_w_scales = sorted(list(set(X[:,4])))
 	print(f"Starting graph generation for seed {SEED}...", flush=True)
-	for scale in unique_w_scales:
+	for scale_idx, scale in enumerate(unique_w_scales):
 
 		# create random initial wealth distribution
 		W = np.random.normal(1, scale, size=1250)
@@ -102,7 +101,8 @@ if __name__ == "__main__":
 		# extract communities and construct community membership dictionary
 		communities = get_communities(G)
 		community_membership = get_community_membership(G, communities)
-		GRAPHS[scale] = (G, communities, community_membership, W)
 
-	with open(output_dir + f"/sda_graphs_{SEED}.pkl.lzma", 'wb') as f:
-		pickle.dump(GRAPHS, f)
+		# store results
+		graph_tuple = (G, communities, community_membership, W)
+		with open(output_dir + f"/sda_graphs_{SEED}_{scale_idx}.pkl.lzma", 'wb') as f:
+			pickle.dump(graph_tuple, f)
