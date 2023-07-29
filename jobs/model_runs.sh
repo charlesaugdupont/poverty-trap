@@ -15,13 +15,13 @@ pip install --user networkx
 pip install --user pymarkowitz
 
 # Create output directory on scratch
-mkdir "$TMPDIR"/output_directory &
+mkdir "$TMPDIR"/model_runs &
 
 # Start jobs
 for i in `seq 1 $SLURM_NTASKS`; do
-	srun --ntasks=1 --nodes=1 --cpus-per-task=1 python -W ignore network_simulation.py "$TMPDIR"/output_directory $i &
+	srun --ntasks=1 --nodes=1 --cpus-per-task=1 python -W ignore network_simulation.py "$TMPDIR"/model_runs $i &
 done
 wait
 
 # Copy output data to home directory
-cp -r "$TMPDIR"/output_directory $HOME
+cp -r "$TMPDIR"/model_runs $HOME
