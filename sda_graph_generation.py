@@ -1,5 +1,4 @@
 import sys
-import lzma
 import pickle
 from SALib.sample import sobol
 from network_model_sda import *
@@ -11,21 +10,17 @@ def sda_prob(d, a, b):
 
 def sda_graph(P):
     G = nx.Graph()
-    
     # create nodes
     for i in range(1250):
         G.add_node(i)
-
     coin_flips = np.random.uniform(size=780625) # 780625 = number of pairwise distances for 1250 agents
     k = 0
-    
     # add edges probabilistically
     for i in range(len(P)):
         for j in range(i+1, len(P)):
             if P[i][j] > coin_flips[k]:
                 G.add_edge(i,j)
-            k += 1
-            
+            k += 1  
     return G
 
 
