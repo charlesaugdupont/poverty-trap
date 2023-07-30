@@ -39,10 +39,12 @@ if __name__ == "__main__":
 
 	start_time = time.time()
 
+	# load a single set of graphs
+	with open("../sda_graphs.pickle", "rb") as f:
+		graphs = pickle.load(f)
+
 	# 10 repetitions to capture stochastic effects
 	for rep_idx, SEED in enumerate([1, 2, 3, 5, 8, 13, 21, 34, 55, 89]):
-
-		graphs = pickle.load(lzma.open(f"../sda_graphs/sda_graphs_{SEED}.pkl.lzma"))
 		
 		# run each param combination
 		for iter_idx, row in enumerate(X):
