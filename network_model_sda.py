@@ -107,9 +107,6 @@ def simulation(NUM_AGENTS=1250,
 			   seed=None,
 			   communities=None,
 			   community_membership=None,
-			   graph=None,
-			   graph_type="powerlaw_cluster", 
-			   graph_args={"m":2, "p":0.5},
 			   INIT_WEALTH_VALUES=None):
 	"""
 	Runs ABM model.
@@ -127,21 +124,12 @@ def simulation(NUM_AGENTS=1250,
 		seed			     : random seed
 		communities  	   	 : graph communities
 		community_membership : mapping from node to communities it is a part of
-		graph 		  	     : NetworkX graph
-		graph_type    	     : type of graph
-		graph_args    	     : arguments for graph construction, specific to graph_type
+		INIT_WEALTH_VALUES   : initial wealth ditribution (used to construct SDA graph)
 	"""
 	# RNG
 	if seed:
 		random.seed(seed)
 		np.random.seed(seed)
-
-	# construct graph
-	G = graph or build_graph(NUM_AGENTS, graph_type, graph_args)
-
-	# extract communities and community membership
-	communities = communities or get_communities(G)
-	community_membership = community_membership or get_community_membership(G, communities)
 
 	# generate a random gamble for each communitiy and append safe asset "gamble"
 	GAMBLES = generate_gambles(len(communities), gain_right_bound=gain_right, prob_left=prob_left)
