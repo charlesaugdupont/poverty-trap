@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --partition=thin
-#SBATCH --time=04:00:00
+#SBATCH --time=02:45:00
 
 # Load modules
 module load 2021
@@ -14,10 +14,7 @@ pip install --user scipy
 # Create output directory on scratch
 mkdir "$TMPDIR"/concat_W_arrays &
 
-# Start jobs
-for i in `seq 1 $SLURM_NTASKS`; do
-	srun --ntasks=1 --nodes=1 --cpus-per-task=1 --mem-per-cpu=32G python -W ignore concat_W_arrays.py "$TMPDIR"/concat_W_arrays &
-done
+srun --ntasks=1 --nodes=1 --cpus-per-task=1 --mem=16G python -W ignore concat_W_arrays.py "$TMPDIR"/concat_W_arrays &
 wait
 
 # Copy output data to home directory

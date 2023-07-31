@@ -12,11 +12,11 @@ if __name__ == "__main__":
 
 	start_time = time.time()
 
-	print(f"{time.time() - start_time} : Starting data loding...")
+	print(f"{time.time() - start_time} : Starting data loading...")
 
 	W_arrays = {f'{i}':{} for i in range(10)}
-	for f in os.listdir("../output_directory/"):
-		data = pickle.load(lzma.open(f"../output_directory/{f}"))
+	for f in os.listdir("../model_runs/"):
+		data = pickle.load(lzma.open(f"../model_runs/{f}"))
 		seed, param = f.split(".")[0].split("_")
 		W_arrays[seed][param] = data["W"]
 	print(f"{time.time()-start_time} : Finished loading data.", flush=True)

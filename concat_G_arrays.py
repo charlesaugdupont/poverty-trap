@@ -12,7 +12,7 @@ if __name__ == "__main__":
 
 	start_time = time.time()
 
-	print(f"{time.time() - start_time} : Starting data loding...")
+	print(f"{time.time() - start_time} : Starting data loading...")
 
 	G_arrays = {f'{i}':{} for i in range(10)}
 	for f in os.listdir("../model_runs/"):
