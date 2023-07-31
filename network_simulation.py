@@ -3,7 +3,7 @@ import time
 import lzma
 import pickle
 from network_model import *
-from SALib.sample import sobol
+from SALib.sample import saltelli
 
 
 if __name__ == "__main__":
@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
 	# generate Saltelli samples
 	NUM_SAMPLES = 1024
-	X = sobol.sample(PROBLEM, NUM_SAMPLES, calc_second_order=False)
+	X = saltelli.sample(PROBLEM, NUM_SAMPLES, calc_second_order=False)
 	L = int(X.shape[0]/128)
 	X = X[idx*L:(idx+1)*L]
 

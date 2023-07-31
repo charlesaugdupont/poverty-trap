@@ -3,7 +3,7 @@ import time
 import lzma
 import pickle
 from network_model_sda import *
-from SALib.sample import sobol
+from SALib.sample import saltelli
 
 
 if __name__ == "__main__":
@@ -33,7 +33,7 @@ if __name__ == "__main__":
 
 	# generate Saltelli samples
 	NUM_SAMPLES = 1024
-	X = sobol.sample(PROBLEM, NUM_SAMPLES, calc_second_order=False)
+	X = saltelli.sample(PROBLEM, NUM_SAMPLES, calc_second_order=False)
 	L = int(X.shape[0]/128)
 	X = X[idx*L:(idx+1)*L]
 
@@ -43,12 +43,16 @@ if __name__ == "__main__":
 	with open("../sda_graphs.pickle", "rb") as f:
 		graphs = pickle.load(f)
 
-	# 10 repetitions to capture stochastic effects
-	for rep_idx, SEED in enumerate([1, 2, 3, 5, 8, 13, 21, 34, 55, 89]):
-		
-		# run each param combination
-		for iter_idx, row in enumerate(X):
 
+	# run each param combination
+	for iter_idx, row in enumerate(X):
+
+		# load graph corresponding to simga value of the current row
+		init_w_scale = row[4]
+
+		# 10 repetitions to capture stochastic effects
+		for rep_idx, SEED in enumerate([1, 2, 3, 5, 8, 13, 21, 34, 55, 89]):
+		
 			graph, communities, community_membership, initial_wealth = graphs[row[4]]
 
 			W, A, R, P, T, _, G = simulation (

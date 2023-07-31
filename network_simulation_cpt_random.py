@@ -2,7 +2,7 @@ import sys
 import time
 import lzma
 import pickle
-from SALib.sample import sobol
+from SALib.sample import saltelli
 from network_model_cpt import *
 
 
@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
 	# generate Saltelli samples
 	NUM_SAMPLES = 1024
-	X = sobol.sample(PROBLEM, NUM_SAMPLES, calc_second_order=False)
+	X = saltelli.sample(PROBLEM, NUM_SAMPLES, calc_second_order=False)
 	L = int(X.shape[0]/128)
 	X = X[idx*L:(idx+1)*L]
 
@@ -76,7 +76,7 @@ if __name__ == "__main__":
 			"G":G,
 			"params":tuple(row),
 		}
-		pickle.dump(data, lzma.open(output_dir + f"/{seed_idx}_{idx*L + iter_idx + 1}.pkl.lzma", 'wb'))
+		pickle.dump(data, lzma.open(output_dir + f"/{seed_idx}_{idx*L + iter_idx + 1}_cpt_random.pkl.lzma", 'wb'))
 
 		print(f"JOB {idx} : finished seed {seed_idx}, param {idx*L + iter_idx + 1} at t = {(time.time() - start_time)/60:.0f} mins", 
 			  flush=True)
