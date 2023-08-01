@@ -11,8 +11,8 @@ if __name__ == "__main__":
 	SEED = int(sys.argv[2]) - 1
 
 	G_arrays = {f'{SEED}':{}}
-	for f in os.listdir(f"../model_runs_cpt/model_runs_cpt_{SEED}/"):
-		data = pickle.load(lzma.open(f"../model_runs_cpt/model_runs_cpt_{SEED}/{f}"))
+	for f in os.listdir(f"../model_runs_cpt_{SEED}/"):
+		data = pickle.load(lzma.open(f"../model_runs_cpt_{SEED}/{f}"))
 		seed, param = f.split(".")[0].split("_")[:2]
 		G_arrays[seed][param] = data["G"].T
 	
