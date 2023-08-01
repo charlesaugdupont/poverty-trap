@@ -45,13 +45,12 @@ if __name__ == "__main__":
 		# load graph corresponding to simga value of the current row
 		init_w_scale = row[4]
 		with open(f"../sda_graphs/{init_w_scale}.pickle", "rb") as f:
-			graph, communities, community_membership, initial_wealth = pickle.load(f)
+			_, communities, community_membership, initial_wealth = pickle.load(f)
 
 		# 10 repetitions to capture stochastic effects
 		for rep_idx, SEED in enumerate([1, 2, 3, 5, 8, 13, 21, 34, 55, 89]):
 		
 			W, A, R, P, T, _, G = simulation (
-				graph=graph,
 				communities=communities,
 				community_membership=community_membership,
 				NUM_AGENTS=1250,
