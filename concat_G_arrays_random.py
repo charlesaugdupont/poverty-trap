@@ -17,7 +17,7 @@ if __name__ == "__main__":
 	G_arrays = {f'{i}':{} for i in range(10)}
 	for f in os.listdir("../model_runs_random/"):
 		data = pickle.load(lzma.open(f"../model_runs_random/{f}"))
-		seed, param = f.split(".")[0].split("_")
+		seed, param = f.split(".")[0].split("_")[:2]
 		G_arrays[seed][param] = data["G"].T
 	print(f"{time.time()-start_time} : Finished loading data.", flush=True)
 

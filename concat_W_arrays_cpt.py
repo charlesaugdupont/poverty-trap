@@ -13,7 +13,7 @@ if __name__ == "__main__":
 	W_arrays = {f'{SEED}':{}}
 	for f in os.listdir(f"../model_runs_cpt_{SEED}/"):
 		data = pickle.load(lzma.open(f"../model_runs_cpt_{SEED}/{f}"))
-		seed, param = f.split(".")[0].split("_")
+		seed, param = f.split(".")[0].split("_")[:2]
 		W_arrays[seed][param] = data["W"]
 
 	for seed_idx, seed in enumerate(W_arrays):
@@ -23,4 +23,4 @@ if __name__ == "__main__":
 		sorted_param_keys = sorted([int(x) for x in keys])
 		for k_idx, k in enumerate(sorted_param_keys):
 			W_SEED[k_idx] = param_W[str(k)].T
-		pickle.dump(W_SEED, lzma.open(output_dir + f"/{SEED}_9216_1250_51_cpt.pkl.lzma", "wb"))
+		pickle.dump(W_SEED, lzma.open(output_dir + f"/{SEED}_8192_1250_51_cpt.pkl.lzma", "wb"))

@@ -17,7 +17,7 @@ if __name__ == "__main__":
 	W_arrays = {f'{i}':{} for i in range(10)}
 	for f in os.listdir("../model_runs_risk_aversion_experiment/"):
 		data = pickle.load(lzma.open(f"../model_runs_risk_aversion_experiment/{f}"))
-		seed, param = f.split(".")[0].split("_")
+		seed, param = f.split(".")[0].split("_")[:2]
 		W_arrays[seed][param] = data["W"]
 	print(f"{time.time()-start_time} : Finished loading data.", flush=True)
 

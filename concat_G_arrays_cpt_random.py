@@ -13,7 +13,7 @@ if __name__ == "__main__":
 	G_arrays = {f'{SEED}':{}}
 	for f in os.listdir(f"../model_runs_cpt_random/model_runs_cpt_random_{SEED}/"):
 		data = pickle.load(lzma.open(f"../model_runs_cpt_random/model_runs_cpt_random_{SEED}/{f}"))
-		seed, param = f.split(".")[0].split("_")
+		seed, param = f.split(".")[0].split("_")[:2]
 		G_arrays[seed][param] = data["G"].T
 	
 	num_params = len(G_arrays[seed])
