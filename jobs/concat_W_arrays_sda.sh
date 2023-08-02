@@ -16,7 +16,7 @@ mkdir "$TMPDIR"/concat_W_arrays_sda &
 
 # Start jobs
 for i in `seq 1 $SLURM_NTASKS`; do
-	srun --ntasks=1 --nodes=1 --cpus-per-task=1 --mem-per-cpu=32G python -W ignore concat_W_arrays_sda.py "$TMPDIR"/concat_W_arrays_sda &
+	srun --ntasks=1 --nodes=1 --cpus-per-task=1 --mem-per-cpu=16G python -W ignore concat_W_arrays_sda.py "$TMPDIR"/concat_W_arrays_sda &
 done
 wait
 
