@@ -3,7 +3,7 @@ import time
 import lzma
 import pickle
 from SALib.sample import saltelli
-from network_model_cpt_sda import *
+from network_model_cpt_sda_fixed_w_scale import *
 
 
 if __name__ == "__main__":
