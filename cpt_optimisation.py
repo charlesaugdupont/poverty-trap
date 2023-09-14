@@ -6,7 +6,6 @@ import cvxpy as cp
 import numpy as np
 from abc import abstractmethod
 from typing import Union, Tuple
-from cpt_optimisation import CPTUtility
 from scipy.optimize import minimize
 
 
