@@ -2,12 +2,11 @@ import sys
 import time
 import lzma
 import pickle
+from model import *
 from SALib.sample import saltelli
-from network_model_cpt_sda import *
 
 
 if __name__ == "__main__":
-
 
 	SEEDS = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
 
@@ -19,19 +18,17 @@ if __name__ == "__main__":
 
 	# problem definition
 	PROBLEM = {
-		"num_vars" : 6,
-		"names"    : ["project_cost",
+		"num_vars" : 5,
+		"names"    : ["theta",
 					  "gain_right",
-					  "alpha_beta",
+					  "beta",
 					  "prob_left",
-					  "init_w_scale",
-					  "poisson_scale"],
-		"bounds"   : [[0.01, 2.00],
-					  [1.70, 2.30],
+					  "alpha"],
+		"bounds"   : [[0.05, 0.95],
+					  [1.70, 8.00],
 					  [0.70, 0.80],
 					  [0.30, 0.45],
-					  [0.01, 0.15],
-					  [8.00, 20.0]]
+					  [2.00, 32.0]]
 	}
 
 	# generate Saltelli samples

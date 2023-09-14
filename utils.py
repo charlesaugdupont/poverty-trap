@@ -6,7 +6,7 @@ import networkx as nx
 
 # Network
 
-def construct_sda_graph(W, alpha, b):
+def construct_sda_graph(W, alpha, b=1/15):
 	"""
 	Constructs a Social Distance Attachment graph.
 	Args:
