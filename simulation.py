@@ -8,7 +8,7 @@ from SALib.sample import saltelli
 
 if __name__ == "__main__":
 
-	SEEDS = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+	SEEDS = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71]
 
 	# parse arguments
 	output_dir = sys.argv[1]
@@ -21,14 +21,14 @@ if __name__ == "__main__":
 		"num_vars" : 5,
 		"names"    : ["theta",
 					  "gain_right",
-					  "beta",
+					  "saving_prop",
 					  "prob_left",
 					  "alpha"],
 		"bounds"   : [[0.05, 0.95],
 					  [1.70, 8.00],
 					  [0.70, 0.80],
 					  [0.30, 0.45],
-					  [2.00, 32.0]]
+					  [2.00, 12.0]]
 	}
 
 	# generate Saltelli samples
@@ -42,10 +42,12 @@ if __name__ == "__main__":
 	# run each param combination
 	for iter_idx, row in enumerate(X):
 
-		# load graph corresponding to simga value of the current row
-		init_w_scale = row[4]
-		with open(f"../sda_graphs/{init_w_scale}.pickle", "rb") as f:
-			_, communities, community_membership, initial_wealth = pickle.load(f)
+		# load graph based on seed number and alpha parameter
+		with open(f"../paper_sda_graphs/{seed_idx}_{row[4]}.pickle", "rb") as f:
+			communities, community_membership, augmented_communities, initial_wealth = pickle.load(f)
+
+		# compute project cost for each community based on theta parameter
+		project_costs = get_community_project_costs(initial_wealth, augmented_communities, row[0])
 
 		W, A, U, P, T, _, G = simulation (
 			communities=communities,
@@ -53,12 +55,11 @@ if __name__ == "__main__":
 			NUM_AGENTS=1250,
 			STEPS=50,
 			seed=SEED,
-			PROJECT_COST=row[0],
+			PROJECT_COSTS=project_costs,
 			gain_right=row[1],
-			ALPHA_BETA=row[2],
+			SAVING_PROP=row[2],
 			prob_left=row[3],
-			INIT_WEALTH_VALUES=initial_wealth,
-			poisson_scale=row[5]
+			INIT_WEALTH_VALUES=initial_wealth
 		)
 
 		# store results

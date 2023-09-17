@@ -132,6 +132,7 @@ def get_community_project_costs(W, augmented_communities, theta):
 		augmented_communities : mapping from community index to agent indices
 		theta        		  : scalar between 0 and 1
 	"""
+	# size is number of communites + 1 due to "safe project"
 	project_costs = np.zeros((len(augmented_communities)+1,))
 	for i in range(len(augmented_communities)):
 		project_costs[i] = np.sum(W[augmented_communities[i]])*theta

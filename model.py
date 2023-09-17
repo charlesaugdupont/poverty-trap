@@ -10,11 +10,11 @@ def simulation(NUM_AGENTS=1225,
 	       	   STEPS=100,
 			   SAFE_RETURN=1.10,
 			   PROJECT_COSTS=None,  
-			   BETA=0.8,
+			   SAVING_PROP=0.8,
 			   GAIN_RIGHT=1.7,
 			   PROB_LEFT=0.3,
 			   POISSON_SCALE=12,
-			   NUM_GAMBLE_SAMPLES=5000,
+			   NUM_GAMBLE_SAMPLES=2000,
 			   SEED=None,
 			   COMMUNITIES=None,
 			   COMMUNITY_MEMBERSHIP=None,
@@ -26,7 +26,7 @@ def simulation(NUM_AGENTS=1225,
 		STEPS         	     : number of steps
 		SAFE_RETURN   	     : safe return coefficient (> 1.0)
 		PROJECT_COSTS  	     : array of project costs
-		BETA		     	 : saving propensity
+		SAVING_PROP		     	 : saving propensity
 		GAIN_RIGHT		     : right bound for generating gamble gains
 		PROB_LEFT 		     : left uniform bound for generating gamble branch probabilities
 		POISSON_SCALE        : mean time between portfolio updates
@@ -69,9 +69,9 @@ def simulation(NUM_AGENTS=1225,
 	gamma_neg = np.random.uniform(31, 70, size=NUM_AGENTS).round(2)
 	delta_pos = np.random.uniform(0.50, 0.70, size=NUM_AGENTS).round(2)
 	delta_neg = np.random.uniform(0.71, 0.90, size=NUM_AGENTS).round(2)
-	utilities = [CPTUtility(gamma_pos=gamma_pos[i], 
-			 				gamma_neg=gamma_neg[i], 
-							delta_pos=delta_pos[i], 
+	utilities = [CPTUtility(gamma_pos=gamma_pos[i],
+			 				gamma_neg=gamma_neg[i],
+							delta_pos=delta_pos[i],
 							delta_neg=delta_neg[i]) for i in range(NUM_AGENTS)]
 
 	# generate some Poisson distributed portfolio update times
@@ -100,7 +100,7 @@ def simulation(NUM_AGENTS=1225,
 
 		# agents choose consumption, and we compute contributions to each project
 		expected_returns = np.array([sum(agent_expected_returns[i]) for i in range(NUM_AGENTS)])
-		consumption[step] = (1-BETA)*wealth[step]*expected_returns
+		consumption[step] = (1-SAVING_PROP)*wealth[step]*expected_returns
 		invested_wealth = wealth[step] - consumption[step]
 		project_contributions = invested_wealth @ portfolios
 
