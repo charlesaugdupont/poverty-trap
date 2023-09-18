@@ -24,7 +24,7 @@ if __name__ == "__main__":
 					  "saving_prop",
 					  "prob_left",
 					  "alpha"],
-		"bounds"   : [[0.05, 0.95],
+		"bounds"   : [[0.05, 0.15],
 					  [1.70, 8.00],
 					  [0.70, 0.80],
 					  [0.30, 0.45],
@@ -43,36 +43,36 @@ if __name__ == "__main__":
 	for iter_idx, row in enumerate(X):
 
 		# load graph based on seed number and alpha parameter
-		with open(f"../paper_sda_graphs/{seed_idx}_{row[4]}.pickle", "rb") as f:
+		with open(f"../sda_graphs/{seed_idx}_{row[4]}.pickle", "rb") as f:
 			communities, community_membership, augmented_communities, initial_wealth = pickle.load(f)
 
 		# compute project cost for each community based on theta parameter
 		project_costs = get_community_project_costs(initial_wealth, augmented_communities, row[0])
 
-		W, A, U, P, T, _, G = simulation (
-			communities=communities,
-			community_membership=community_membership,
-			NUM_AGENTS=1250,
-			STEPS=50,
-			seed=SEED,
+		W, I, C, O, A, U, P, T = simulation (
+			COMMUNITY=communities,
+			COMMUNITY_MEMBERSHIP=community_membership,
+			SEED=SEED,
 			PROJECT_COSTS=project_costs,
-			gain_right=row[1],
+			GAIN_RIGHT=row[1],
 			SAVING_PROP=row[2],
-			prob_left=row[3],
+			PROB_LEFT=row[3],
 			INIT_WEALTH_VALUES=initial_wealth
 		)
 
 		# store results
 		data = {
 			"W":W,
+			"I":I,
+			"C":C,
+			"O":O,
 			"A":A,
 			"U":U,
 			"P":P,
-			"T":np.array(list(T.values())).astype(np.int16),
-			"G":G,
-			"params":tuple(row),
+			"T":T,
+			"params":tuple(row)
 		}
-		pickle.dump(data, lzma.open(output_dir + f"/{seed_idx}_{idx*L + iter_idx + 1}_cpt_sda.pkl.lzma", 'wb'))
+		pickle.dump(data, lzma.open(output_dir + f"/{seed_idx}_{idx*L + iter_idx + 1}_paper.pkl.lzma", 'wb'))
 
 		print(f"JOB {idx} : finished seed {seed_idx}, param {idx*L + iter_idx + 1} at t = {(time.time() - start_time)/60:.0f} mins", 
 			  flush=True)

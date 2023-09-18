@@ -122,6 +122,7 @@ def get_augmented_communities(community_membership):
 				augmented_communities[c].add(agent) 
 	augmented_communities = {k:np.array(list(v)) for k,v in augmented_communities.items()}
 	del augmented_communities[max(augmented_communities.keys())]
+	return augmented_communities
 
 
 def get_community_project_costs(W, augmented_communities, theta):

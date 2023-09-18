@@ -50,7 +50,7 @@ def simulation(NUM_AGENTS=1225,
 	for i,g in enumerate(gambles):
 		gamble_prior_samples[:,i] = np.random.choice(g["outcomes"], NUM_GAMBLE_SAMPLES, p=g["probs"])
 	gambles_prior_mu  = np.mean(gamble_prior_samples, axis=0)
-	assert SAFE_RETURN <= np.min(gambles_prior_mu)
+	assert SAFE_RETURN <= np.min(gambles_prior_mu.round(1))
 
 	# generate some random gamble returns
 	gamble_random_returns = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in gambles]])
@@ -58,11 +58,13 @@ def simulation(NUM_AGENTS=1225,
 	# array to keep track of actual empirical gamble returns
 	gamble_observed_samples = np.zeros((STEPS, len(gambles)), dtype=np.float16)
 
-	# agent attributes
+	# attributes and metrics
 	consumption = np.zeros((STEPS, NUM_AGENTS), dtype=np.float16)
+	investment = np.zeros((STEPS, NUM_AGENTS), dtype=np.float16)
 	wealth = np.zeros((STEPS+1, NUM_AGENTS), dtype=np.float16)
 	wealth[0,:] = INIT_WEALTH_VALUES
 	attention = np.random.uniform(size=NUM_AGENTS).astype(np.float16)
+	contributions = np.zeros((STEPS, len(COMMUNITIES)+1), dtype=np.float16)
 
 	# CPT utilities
 	gamma_pos = np.random.uniform(5, 30, size=NUM_AGENTS).round(2)
@@ -102,7 +104,9 @@ def simulation(NUM_AGENTS=1225,
 		expected_returns = np.array([sum(agent_expected_returns[i]) for i in range(NUM_AGENTS)])
 		consumption[step] = (1-SAVING_PROP)*wealth[step]*expected_returns
 		invested_wealth = wealth[step] - consumption[step]
+		investment[step] = invested_wealth
 		project_contributions = invested_wealth @ portfolios
+		contributions[step] = project_contributions
 
 		# get gamble returns
 		successful_gambles = project_contributions >= PROJECT_COSTS
@@ -113,7 +117,8 @@ def simulation(NUM_AGENTS=1225,
 		# update agent wealth
 		wealth[step+1] = np.minimum(6e4, np.multiply(invested_wealth[:,np.newaxis], portfolios) @ returns)
 
-	return wealth, attention, utilities, all_portfolios, update_times, gamble_observed_samples
+	return wealth, investment, contributions, gamble_observed_samples, \
+		   attention, utilities, all_portfolios, update_times
 
 
 def portfolio_update(i, utility, gamble_returns, community_membership, attention, mu, 
