@@ -26,7 +26,7 @@ def simulation(NUM_AGENTS=1225,
 		STEPS         	     : number of steps
 		SAFE_RETURN   	     : safe return coefficient (> 1.0)
 		PROJECT_COSTS  	     : array of project costs
-		SAVING_PROP		     	 : saving propensity
+		SAVING_PROP		     : saving propensity
 		GAIN_RIGHT		     : right bound for generating gamble gains
 		PROB_LEFT 		     : left uniform bound for generating gamble branch probabilities
 		POISSON_SCALE        : mean time between portfolio updates
