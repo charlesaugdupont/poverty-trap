@@ -43,14 +43,14 @@ if __name__ == "__main__":
 	for iter_idx, row in enumerate(X):
 
 		# load graph based on seed number and alpha parameter
-		with open(f"../sda_graphs/{seed_idx}_{row[4]}.pickle", "rb") as f:
+		with open(f"./sda_graphs/{seed_idx}_{row[4]}.pickle", "rb") as f:
 			communities, community_membership, augmented_communities, initial_wealth = pickle.load(f)
 
 		# compute project cost for each community based on theta parameter
 		project_costs = get_community_project_costs(initial_wealth, augmented_communities, row[0])
 
 		W, I, C, O, A, U, P, T = simulation (
-			COMMUNITY=communities,
+			COMMUNITIES=communities,
 			COMMUNITY_MEMBERSHIP=community_membership,
 			SEED=SEED,
 			PROJECT_COSTS=project_costs,
