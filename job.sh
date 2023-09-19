@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=128
 #SBATCH --partition=thin
-#SBATCH --time=24:00:00
+#SBATCH --time=09:00:00
 
 # Load modules
 module load 2021
