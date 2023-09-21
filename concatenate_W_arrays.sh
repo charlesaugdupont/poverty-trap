@@ -5,6 +5,8 @@
 #SBATCH --ntasks=20
 #SBATCH --partition=thin
 #SBATCH --time=01:30:00
+#SBATCH --mem=160GB
+
 
 # Load modules
 module load 2021
