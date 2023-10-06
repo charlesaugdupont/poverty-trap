@@ -11,8 +11,8 @@ if __name__ == "__main__":
 	SEED = int(sys.argv[2]) - 1
 
 	W_arrays = {f'{SEED}':{}}
-	for f in os.listdir(f"./model_runs_paper_{SEED}/"):
-		data = pickle.load(lzma.open(f"./model_runs_paper_{SEED}/{f}"))
+	for f in os.listdir(f"./new_model_runs_paper_{SEED}/"):
+		data = pickle.load(lzma.open(f"./new_model_runs_paper_{SEED}/{f}"))
 		seed, param = f.split(".")[0].split("_")[:2]
 		W_arrays[seed][param] = data["W"]
 

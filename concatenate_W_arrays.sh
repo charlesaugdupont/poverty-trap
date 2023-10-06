@@ -14,13 +14,13 @@ module load Python/3.9.5-GCCcore-10.3.0
 pip install --user scipy
 
 # Create output directory on scratch
-mkdir "$TMPDIR"/W_arrays &
+mkdir "$TMPDIR"/new_W_arrays &
 
 # Start jobs
 for i in `seq 1 $SLURM_NTASKS`; do
-	srun --ntasks=1 --nodes=1 --cpus-per-task=1 --mem-per-cpu=8G python -W ignore concatenate_W_arrays.py "$TMPDIR"/W_arrays $i &
+	srun --ntasks=1 --nodes=1 --cpus-per-task=1 --mem-per-cpu=8G python -W ignore concatenate_W_arrays.py "$TMPDIR"/new_W_arrays $i &
 done
 wait
 
 # Copy output data to home directory
-cp -r "$TMPDIR"/W_arrays $HOME
+cp -r "$TMPDIR"/new_W_arrays $HOME
