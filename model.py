@@ -49,7 +49,8 @@ def simulation(NUM_AGENTS=1225,
 	gamble_prior_samples = np.zeros((NUM_GAMBLE_SAMPLES, len(gambles)))
 	for i,g in enumerate(gambles):
 		gamble_prior_samples[:,i] = np.random.choice(g["outcomes"], NUM_GAMBLE_SAMPLES, p=g["probs"])
-	assert SAFE_RETURN <= np.min(np.mean(gamble_prior_samples, axis=0).round(1))
+	gambles_prior_mu  = np.mean(gamble_prior_samples, axis=0)
+	assert SAFE_RETURN <= np.min(gambles_prior_mu.round(1))
 
 	# generate some random gamble returns
 	gamble_random_returns = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in gambles]])
@@ -79,8 +80,9 @@ def simulation(NUM_AGENTS=1225,
 	poisson_times = np.random.poisson(POISSON_SCALE, size=(NUM_AGENTS, 12))
 	update_times = {k:list(v) for k,v in enumerate(np.cumsum(poisson_times, axis=1))}
 
-	# initialize portfolio for each agent
+	# initialize portfolios and compute expected returns for each agent
 	portfolios = initialize_portfolios(NUM_AGENTS, len(COMMUNITIES)+1, utilities, gamble_prior_samples, COMMUNITY_MEMBERSHIP)
+	agent_expected_returns = [portfolios[i][COMMUNITY_MEMBERSHIP[i]] * gambles_prior_mu[COMMUNITY_MEMBERSHIP[i]] for i in range(NUM_AGENTS)]
 	all_portfolios = {i:[portfolios[i][COMMUNITY_MEMBERSHIP[i]]] for i in range(NUM_AGENTS)}
 
 	# RUN SIMULATION
@@ -89,15 +91,18 @@ def simulation(NUM_AGENTS=1225,
 		# check for portfolio updates after a "burn-in" period of 5 steps
 		if step >= 5:
 			recent_samples = gamble_observed_samples[:step,:]
+			mu = np.mean(recent_samples, axis=0)			
 			for i in range(NUM_AGENTS):
 				# check if agent needs to be updated at current step
 				if step in update_times[i]:
 					comm_mem = COMMUNITY_MEMBERSHIP[i]
 					portfolio_update(i, utilities[i], recent_samples[:,comm_mem], 
-						      		 comm_mem, attention[i], portfolios, all_portfolios)
+						      		 comm_mem, attention[i], mu[comm_mem], gambles_prior_mu[comm_mem],
+									 agent_expected_returns, portfolios, all_portfolios)
 
 		# agents choose consumption, and we compute contributions to each project
-		consumption[step] = (1-SAVING_PROP)*wealth[step]
+		expected_returns = np.array([sum(agent_expected_returns[i]) for i in range(NUM_AGENTS)])
+		consumption[step] = (1-SAVING_PROP)*wealth[step]*expected_returns
 		invested_wealth = wealth[step] - consumption[step]
 		investment[step] = invested_wealth
 		project_contributions = invested_wealth @ portfolios
@@ -116,8 +121,8 @@ def simulation(NUM_AGENTS=1225,
 		   attention, utilities, all_portfolios, update_times
 
 
-def portfolio_update(i, utility, gamble_returns, community_membership, 
-					 attention, portfolios, all_portfolios):
+def portfolio_update(i, utility, gamble_returns, community_membership, attention, mu, 
+		     		 gambles_prior_mu, agent_expected_returns, portfolios, all_portfolios):
 	"""
 	Update an agent's portfolio and expected portfolio return.
 	Args:
@@ -126,6 +131,9 @@ def portfolio_update(i, utility, gamble_returns, community_membership,
 		gamble_returns		   : array of observed project returns relevant to the agent; shape is (num steps so far, # projects)
 		community_membership   : array of indices of the communities that the agent is a part of
 		attention			   : agent attention parameter
+		mu 					   : mean vector of observed project returns
+		gambles_prior_mu	   : mean vector of prior project samples
+		agent_expected_returns : vector of expected portfolio return for all agents
 		PORTFOLIOS			   : dictionary from agent index to current agent portfolio
 		all_portfolios		   : dictionary from agent index to historical list of agent's portfolios
 	"""
@@ -153,6 +161,10 @@ def portfolio_update(i, utility, gamble_returns, community_membership,
 	new_portfolio = np.zeros(portfolios.shape[1])
 	new_portfolio[community_membership] = updated_portfolio
 	portfolios[i] = new_portfolio
+
+	# update expected portfolio return
+	updated_mu = (1-attention)*gambles_prior_mu + attention*mu
+	agent_expected_returns[i] = updated_mu * portfolios[i][community_membership]
 
 
 def initialize_portfolios(NUM_AGENTS, num_projects, utilities, gamble_samples, COMMUNITY_MEMBERSHIP):
