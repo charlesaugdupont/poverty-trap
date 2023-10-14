@@ -55,7 +55,7 @@ if __name__ == "__main__":
 	P = 91
 
 	# load data
-	data = pickle.load(lzma.open(f"new_W_arrays/{seed}"))
+	data = pickle.load(lzma.open(f"new_W_arrays/{seed}_paper.pkl.lzma"))
 	data = data[:,:,:100].reshape(1, 7168, 350, 350)
 
 	# run grassmannian diffusion maps
