@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=128
 #SBATCH --partition=thin
-#SBATCH --time=12:00:00
+#SBATCH --time=14:00:00
 
 # Load modules
 module load 2021
@@ -15,15 +15,15 @@ pip install --user cvxpy
 pip install --user networkx
 
 args=("$@")
-
+ 
 # Create output directory on scratch
-mkdir "$TMPDIR"/new_model_runs_paper_${args[0]} &
+mkdir "$TMPDIR"/model_runs_alternate_${args[0]} &
 
 # Start jobs
 for i in `seq 1 $SLURM_NTASKS`; do
-	srun --ntasks=1 --nodes=1 --cpus-per-task=1 python -W ignore simulation.py "$TMPDIR"/new_model_runs_paper_${args[0]} $i ${args[0]} &
+	srun --ntasks=1 --nodes=1 --cpus-per-task=1 python -W ignore simulation.py "$TMPDIR"/model_runs_alternate_${args[0]} $i ${args[0]} &
 done
 wait
 
 # Copy output data to home directory
-cp -r "$TMPDIR"/new_model_runs_paper_${args[0]} $HOME
+cp -r "$TMPDIR"/model_runs_alternate_${args[0]} $HOME

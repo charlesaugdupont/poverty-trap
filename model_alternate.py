@@ -18,7 +18,8 @@ def simulation(NUM_AGENTS=1225,
 			   SEED=None,
 			   COMMUNITIES=None,
 			   COMMUNITY_MEMBERSHIP=None,
-			   INIT_WEALTH_VALUES=None):
+			   INIT_WEALTH_VALUES=None,
+			   ASSISTANCE=None):
 	"""
 	Runs ABM model.
 	Args:
@@ -102,9 +103,9 @@ def simulation(NUM_AGENTS=1225,
 
 		# agents choose consumption, and we compute contributions to each project
 		expected_returns = np.array([sum(agent_expected_returns[i]) for i in range(NUM_AGENTS)])
-		consumption[step] = (1-SAVING_PROP)*wealth[step]*expected_returns
+		consumption[step] = np.maximum((1-SAVING_PROP)*wealth[step]*expected_returns, 0)
 		invested_wealth = wealth[step] - consumption[step]
-		investment[step] = invested_wealth
+		investment[step] = np.maximum(invested_wealth, 0)
 		project_contributions = invested_wealth @ portfolios
 		contributions[step] = project_contributions
 
@@ -114,6 +115,17 @@ def simulation(NUM_AGENTS=1225,
 		returns = (successful_gambles * gamble_random_returns[:,step]).astype(np.float16)
 		gamble_observed_samples[step] = returns
 
+		# provide assistance to indebted community members
+		for c_idx, c in enumerate(COMMUNITIES):
+			if returns[c_idx] > 0:
+				indebted = [agent for agent in c if wealth[step][agent] < 0]
+				if len(indebted):
+					total_debt = sum([wealth[step][a] for a in indebted])
+					assistance_amount = returns[c_idx] * ASSISTANCE
+					for a in indebted:
+						wealth[step][a] += (wealth[step][a]/total_debt) * assistance_amount
+					returns[c_idx] -= assistance_amount
+				
 		# update agent wealth
 		wealth[step+1] = np.minimum(6e4, np.multiply(invested_wealth[:,np.newaxis], portfolios) @ returns)
 

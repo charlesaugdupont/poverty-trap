@@ -2,7 +2,7 @@ import sys
 import time
 import lzma
 import pickle
-from model import *
+from model_alternate import *
 from SALib.sample import saltelli
 
 
@@ -18,17 +18,19 @@ if __name__ == "__main__":
 
 	# problem definition
 	PROBLEM = {
-		"num_vars" : 5,
+		"num_vars" : 6,
 		"names"    : ["theta",
 					  "gain_right",
 					  "saving_prop",
 					  "prob_left",
-					  "alpha"],
+					  "alpha",
+					  "assistance"],
 		"bounds"   : [[0.01, 0.20],
 					  [1.70, 8.00],
 					  [0.70, 0.80],
 					  [0.30, 0.45],
-					  [2.00, 12.0]]
+					  [2.00, 12.0],
+					  [0.05, 0.30]]
 	}
 
 	# generate Saltelli samples
@@ -57,6 +59,7 @@ if __name__ == "__main__":
 			GAIN_RIGHT=row[1],
 			SAVING_PROP=row[2],
 			PROB_LEFT=row[3],
+			ASSISTANCE=row[5],
 			INIT_WEALTH_VALUES=initial_wealth
 		)
 
@@ -74,5 +77,4 @@ if __name__ == "__main__":
 		}
 		pickle.dump(data, lzma.open(output_dir + f"/{seed_idx}_{idx*L + iter_idx + 1}_paper.pkl.lzma", 'wb'))
 
-		print(f"JOB {idx} : finished seed {seed_idx}, param {idx*L + iter_idx + 1} at t = {(time.time() - start_time)/60:.0f} mins", 
-			  flush=True)
+		print(f"JOB {idx} : finished seed {seed_idx}, param {idx*L + iter_idx + 1} at t = {(time.time() - start_time)/60:.0f} mins", flush=True)
