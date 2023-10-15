@@ -3,12 +3,12 @@
 # Set job requirements
 #SBATCH --nodes=1
 #SBATCH --ntasks=128
-#SBATCH --partition=thin
+#SBATCH --partition=genoa
 #SBATCH --time=14:00:00
 
 # Load modules
-module load 2021
-module load Python/3.9.5-GCCcore-10.3.0
+module load 2022
+module load Python/3.10.4-GCCcore-11.3.0
 pip install --user scipy
 pip install --user SALib
 pip install --user cvxpy
