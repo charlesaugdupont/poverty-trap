@@ -127,7 +127,7 @@ def simulation(NUM_AGENTS=1225,
 					for a in indebted:
 						proportional_assistance_amount = (wealth[step+1][a]/total_debt) * assistance_amount
 						wealth[step+1][a] += proportional_assistance_amount
-						if a not in assistance_amount:
+						if a not in assistance_received:
 							assistance_received[a] = [(step,proportional_assistance_amount)]
 						else:
 							assistance_received[a].append((step,proportional_assistance_amount))
