@@ -21,7 +21,7 @@ mkdir "$TMPDIR"/model_runs_alternate_${args[0]} &
 
 # Start jobs
 for i in `seq 1 $SLURM_NTASKS`; do
-	srun --ntasks=1 --nodes=1 --cpus-per-task=1 python -W ignore simulation.py "$TMPDIR"/model_runs_alternate_${args[0]} $i ${args[0]} &
+	srun --ntasks=1 --nodes=1 --cpus-per-task=1 python -W ignore simulation_alternate.py "$TMPDIR"/model_runs_alternate_${args[0]} $i ${args[0]} &
 done
 wait
 
