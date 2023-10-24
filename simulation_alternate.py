@@ -18,19 +18,17 @@ if __name__ == "__main__":
 
 	# problem definition
 	PROBLEM = {
-		"num_vars" : 6,
+		"num_vars" : 5,
 		"names"    : ["theta",
 					  "gain_right",
 					  "saving_prop",
 					  "prob_left",
-					  "alpha",
-					  "assistance"],
+					  "alpha"],
 		"bounds"   : [[0.01, 0.20],
 					  [1.70, 8.00],
 					  [0.70, 0.80],
 					  [0.30, 0.45],
-					  [2.00, 12.0],
-					  [0.05, 0.30]]
+					  [2.00, 12.0]]
 	}
 
 	# generate Saltelli samples
@@ -51,7 +49,7 @@ if __name__ == "__main__":
 		# compute project cost for each community based on theta parameter
 		project_costs = get_community_project_costs(initial_wealth, augmented_communities, row[0])
 
-		W, I, C, O, A, U, P, T, H = simulation (
+		W, I, C, O, A, U, P, T = simulation (
 			COMMUNITIES=communities,
 			COMMUNITY_MEMBERSHIP=community_membership,
 			SEED=SEED,
@@ -59,7 +57,6 @@ if __name__ == "__main__":
 			GAIN_RIGHT=row[1],
 			SAVING_PROP=row[2],
 			PROB_LEFT=row[3],
-			ASSISTANCE=row[5],
 			INIT_WEALTH_VALUES=initial_wealth
 		)
 
@@ -73,9 +70,9 @@ if __name__ == "__main__":
 			"U":U,
 			"P":P,
 			"T":T,
-			"H":H,
 			"params":tuple(row)
 		}
 		pickle.dump(data, lzma.open(output_dir + f"/{seed_idx}_{idx*L + iter_idx + 1}_paper.pkl.lzma", 'wb'))
 
-		print(f"JOB {idx} : finished seed {seed_idx}, param {idx*L + iter_idx + 1} at t = {(time.time() - start_time)/60:.0f} mins", flush=True)
+		print(f"JOB {idx} : finished seed {seed_idx}, param {idx*L + iter_idx + 1} at t = {(time.time() - start_time)/60:.0f} mins", 
+			  flush=True)

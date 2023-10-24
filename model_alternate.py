@@ -18,8 +18,7 @@ def simulation(NUM_AGENTS=1225,
 			   SEED=None,
 			   COMMUNITIES=None,
 			   COMMUNITY_MEMBERSHIP=None,
-			   INIT_WEALTH_VALUES=None,
-			   ASSISTANCE=None):
+			   INIT_WEALTH_VALUES=None):
 	"""
 	Runs ABM model.
 	Args:
@@ -56,7 +55,7 @@ def simulation(NUM_AGENTS=1225,
 	# generate some random gamble returns
 	gamble_random_returns = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in gambles]])
 
-	# array to keep track of empirical gamble returns
+	# array to keep track of actual empirical gamble returns
 	gamble_observed_samples = np.zeros((STEPS, len(gambles)), dtype=np.float16)
 
 	# attributes and metrics
@@ -66,7 +65,6 @@ def simulation(NUM_AGENTS=1225,
 	wealth[0,:] = INIT_WEALTH_VALUES
 	attention = np.random.uniform(size=NUM_AGENTS).astype(np.float16)
 	contributions = np.zeros((STEPS, len(COMMUNITIES)+1), dtype=np.float16)
-	assistance_received = {}
 
 	# CPT utilities
 	gamma_pos = np.random.uniform(5, 30, size=NUM_AGENTS).round(2)
@@ -106,38 +104,30 @@ def simulation(NUM_AGENTS=1225,
 		expected_returns = np.array([sum(agent_expected_returns[i]) for i in range(NUM_AGENTS)])
 		consumption[step] = np.maximum((1-SAVING_PROP)*wealth[step]*expected_returns, 0)
 
-		# compute investment wealth at next time step by subtracting consumed amount
 		wealth[step+1] = wealth[step] - consumption[step]
+		if np.any(wealth[step+1]<0):
+			print("INDEBTED AGENTS", flush=True) # PRINTS!
+
+		# compute investment
 		investment[step] = np.maximum(wealth[step+1], 0)
+
+		# compute project contributions using portfolios
 		contributions[step] = investment[step] @ portfolios
 
 		# get gamble returns
 		successful_gambles = contributions[step] >= PROJECT_COSTS
 		successful_gambles[-1] = True # safe asset has guaranteed return
-		returns = (successful_gambles * gamble_random_returns[:,step]).astype(np.float16)
-		gamble_observed_samples[step] = returns
+		gamble_observed_samples[step] = (successful_gambles * gamble_random_returns[:,step]).astype(np.float16)
 
-		# provide assistance to indebted community members
-		for c_idx, c in enumerate(COMMUNITIES):
-			if returns[c_idx] > 0:
-				indebted = [agent for agent in c if wealth[step+1][agent] < 0]
-				if len(indebted):
-					total_debt = sum([wealth[step+1][a] for a in indebted])
-					assistance_amount = returns[c_idx] * ASSISTANCE
-					for a in indebted:
-						proportional_assistance_amount = (wealth[step+1][a]/total_debt) * assistance_amount
-						wealth[step+1][a] += proportional_assistance_amount
-						if a not in assistance_received:
-							assistance_received[a] = [(step,proportional_assistance_amount)]
-						else:
-							assistance_received[a].append((step,proportional_assistance_amount))
-					returns[c_idx] -= assistance_amount
-				
-		# calculate adjusted agent wealth at next time tsep using investment returns
-		wealth[step+1] = np.minimum(6e4, np.multiply(investment[step][:,np.newaxis], portfolios) @ returns)
+		# update wealth of non-indebted agents
+		not_indebted = np.where(wealth[step+1]>=0)
+		wealth[step+1][not_indebted] = np.minimum(6e4, np.multiply(investment[step][:,np.newaxis], portfolios) @ gamble_observed_samples[step])[not_indebted]
+
+		if np.any(wealth[step+1]<0):
+			print("NEGATIVE WEALTH", flush=True) # PRINTS!
 
 	return wealth, investment, contributions, gamble_observed_samples, \
-		   attention, utilities, all_portfolios, update_times, assistance_received
+		   attention, utilities, all_portfolios, update_times
 
 
 def portfolio_update(i, utility, gamble_returns, community_membership, attention, mu, 
