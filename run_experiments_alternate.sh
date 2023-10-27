@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=128
 #SBATCH --partition=genoa
-#SBATCH --time=10:00:00
+#SBATCH --time=08:00:00
 
 # Load modules
 module load 2022
