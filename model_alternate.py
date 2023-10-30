@@ -129,7 +129,7 @@ def simulation(NUM_AGENTS=1225,
 				indebted = [agent for agent in c if wealth[step+1][agent] < 0]
 				if len(indebted):
 					total_debt = sum([wealth[step+1][a] for a in indebted])
-					assistance_amount = contributions[c_idx] * returns[c_idx] * ASSISTANCE
+					assistance_amount = contributions[step][c_idx] * returns[c_idx] * ASSISTANCE
 					for a in indebted:
 						proportional_assistance_amount = (wealth[step+1][a]/total_debt) * assistance_amount
 						wealth[step+1][a] += proportional_assistance_amount
