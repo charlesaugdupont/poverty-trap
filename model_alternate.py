@@ -125,11 +125,11 @@ def simulation(NUM_AGENTS=1225,
 
 		# provide assistance to indebted community members
 		for c_idx, c in enumerate(COMMUNITIES):
-			if returns[c_idx] > 0:
+			if returns[c_idx] > 0: # project reached minimum investment threshold
 				indebted = [agent for agent in c if wealth[step+1][agent] < 0]
 				if len(indebted):
 					total_debt = sum([wealth[step+1][a] for a in indebted])
-					assistance_amount = returns[c_idx] * ASSISTANCE
+					assistance_amount = contributions[c_idx] * returns[c_idx] * ASSISTANCE
 					for a in indebted:
 						proportional_assistance_amount = (wealth[step+1][a]/total_debt) * assistance_amount
 						wealth[step+1][a] += proportional_assistance_amount
@@ -137,10 +137,10 @@ def simulation(NUM_AGENTS=1225,
 							assistance_received[a] = [(step,proportional_assistance_amount)]
 						else:
 							assistance_received[a].append((step,proportional_assistance_amount))
-					returns[c_idx] -= assistance_amount
+					returns[c_idx] = returns[c_idx] * (1-ASSISTANCE)
 
 		# update wealth of non-indebted agents
-		wealth[step+1][not_indebted] = np.minimum(6e4, np.multiply(investment[step][:,np.newaxis], portfolios) @ gamble_observed_samples[step])[not_indebted]
+		wealth[step+1][not_indebted] = np.minimum(6e4, np.multiply(investment[step][:,np.newaxis], portfolios) @ returns)[not_indebted]
 
 	return wealth, investment, contributions, gamble_observed_samples, \
 		   attention, utilities, all_portfolios, update_times, assistance_received
