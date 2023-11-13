@@ -18,7 +18,9 @@ def simulation(NUM_AGENTS=1225,
 			   SEED=None,
 			   COMMUNITIES=None,
 			   COMMUNITY_MEMBERSHIP=None,
-			   INIT_WEALTH_VALUES=None):
+			   INIT_WEALTH_VALUES=None,
+			   ASSISTANCE=None,
+			   idx=-1):
 	"""
 	Runs ABM model.
 	Args:
@@ -59,12 +61,13 @@ def simulation(NUM_AGENTS=1225,
 	gamble_observed_samples = np.zeros((STEPS, len(gambles)), dtype=np.float16)
 
 	# attributes and metrics
-	consumption = np.zeros((STEPS, NUM_AGENTS), dtype=np.float16)
-	investment = np.zeros((STEPS, NUM_AGENTS), dtype=np.float16)
-	wealth = np.zeros((STEPS+1, NUM_AGENTS), dtype=np.float16)
-	wealth[0,:] = INIT_WEALTH_VALUES
-	attention = np.random.uniform(size=NUM_AGENTS).astype(np.float16)
-	contributions = np.zeros((STEPS, len(COMMUNITIES)+1), dtype=np.float16)
+	consumption 		= np.zeros((STEPS, NUM_AGENTS), dtype=np.float16)
+	investment 			= np.zeros((STEPS, NUM_AGENTS), dtype=np.float16)
+	wealth 				= np.zeros((STEPS+1, NUM_AGENTS), dtype=np.float16)
+	wealth[0,:] 		= INIT_WEALTH_VALUES
+	attention 			= np.random.uniform(size=NUM_AGENTS).astype(np.float16)
+	contributions		= np.zeros((STEPS, len(COMMUNITIES)+1), dtype=np.float16)
+	assistance_received = {}
 
 	# CPT utilities
 	gamma_pos = np.random.uniform(5, 30, size=NUM_AGENTS).round(2)
@@ -101,12 +104,12 @@ def simulation(NUM_AGENTS=1225,
 									 agent_expected_returns, portfolios, all_portfolios)
 
 		# agents choose consumption, and we compute contributions to each project
-		expected_returns = np.array([sum(agent_expected_returns[i]) for i in range(NUM_AGENTS)])
+		expected_returns  = np.array([sum(agent_expected_returns[i]) for i in range(NUM_AGENTS)])
 		consumption[step] = np.maximum((1-SAVING_PROP)*wealth[step]*expected_returns, 0)
 
+		# adjust wealth and track which agents are not indebted
 		wealth[step+1] = wealth[step] - consumption[step]
-		if np.any(wealth[step+1]<0):
-			print("INDEBTED AGENTS", flush=True) # PRINTS!
+		not_indebted   = np.where(wealth[step+1]>=0)
 
 		# compute investment
 		investment[step] = np.maximum(wealth[step+1], 0)
@@ -117,17 +120,30 @@ def simulation(NUM_AGENTS=1225,
 		# get gamble returns
 		successful_gambles = contributions[step] >= PROJECT_COSTS
 		successful_gambles[-1] = True # safe asset has guaranteed return
-		gamble_observed_samples[step] = (successful_gambles * gamble_random_returns[:,step]).astype(np.float16)
+		returns = (successful_gambles * gamble_random_returns[:,step]).astype(np.float16)
+		gamble_observed_samples[step] = copy.deepcopy(returns)
+
+		# provide assistance to indebted community members
+		for c_idx, c in enumerate(COMMUNITIES):
+			if returns[c_idx] > 0: # project reached minimum investment threshold
+				indebted = [agent for agent in c if wealth[step+1][agent] < 0]
+				if len(indebted):
+					total_debt = sum([wealth[step+1][a] for a in indebted])
+					assistance_amount = contributions[step][c_idx] * returns[c_idx] * ASSISTANCE
+					for a in indebted:
+						proportional_assistance_amount = (wealth[step+1][a]/total_debt) * assistance_amount
+						wealth[step+1][a] += proportional_assistance_amount
+						if a not in assistance_received:
+							assistance_received[a] = [(step,proportional_assistance_amount)]
+						else:
+							assistance_received[a].append((step,proportional_assistance_amount))
+					returns[c_idx] = returns[c_idx] * (1-ASSISTANCE)
 
 		# update wealth of non-indebted agents
-		not_indebted = np.where(wealth[step+1]>=0)
-		wealth[step+1][not_indebted] = np.minimum(6e4, np.multiply(investment[step][:,np.newaxis], portfolios) @ gamble_observed_samples[step])[not_indebted]
-
-		if np.any(wealth[step+1]<0):
-			print("NEGATIVE WEALTH", flush=True) # PRINTS!
+		wealth[step+1][not_indebted] = np.minimum(6e4, np.multiply(investment[step][:,np.newaxis], portfolios) @ returns)[not_indebted]
 
 	return wealth, investment, contributions, gamble_observed_samples, \
-		   attention, utilities, all_portfolios, update_times
+		   attention, utilities, all_portfolios, update_times, assistance_received
 
 
 def portfolio_update(i, utility, gamble_returns, community_membership, attention, mu, 
