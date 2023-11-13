@@ -18,7 +18,7 @@ mkdir "$TMPDIR"/W_arrays_debt &
 
 # Start jobs
 for i in `seq 1 $SLURM_NTASKS`; do
-	srun --ntasks=1 --nodes=1 --cpus-per-task=1 --mem-per-cpu=8G python -W ignore concatenate_W_array_debt.py "$TMPDIR"/W_arrays_debt $i &
+	srun --ntasks=1 --nodes=1 --cpus-per-task=1 --mem-per-cpu=8G python -W ignore concatenate_W_arrays_debt.py "$TMPDIR"/W_arrays_debt $i &
 done
 wait
 
