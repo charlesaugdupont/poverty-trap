@@ -16,8 +16,10 @@ if __name__ == "__main__":
 		seed, param = f.split(".")[0].split("_")[:2]
 		W_arrays[seed][param] = data["W"]
 
+	num_param_combinations = len(W_arrays[seed])
+
 	for seed_idx, seed in enumerate(W_arrays):
-		W_SEED = np.zeros((7168, 1225, 101), dtype=np.float16)
+		W_SEED = np.zeros((num_param_combinations, 1225, 101), dtype=np.float16)
 		param_W = W_arrays[seed]
 		keys = list(param_W.keys())
 		sorted_param_keys = sorted([int(x) for x in keys])
