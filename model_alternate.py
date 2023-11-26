@@ -141,8 +141,7 @@ def simulation(NUM_AGENTS=1225,
 
 		# update wealth of non-indebted agents
 		portfolio_returns_for_non_indebted_agents = (np.multiply(investment[step][:,np.newaxis], portfolios) @ returns)[not_indebted]
-		wealth[step+1][not_indebted] += portfolio_returns_for_non_indebted_agents
-		wealth[step+1][not_indebted] = np.minimum(6e4, wealth[step+1][not_indebted])
+		wealth[step+1][not_indebted] = np.minimum(6e4, portfolio_returns_for_non_indebted_agents)
 
 	return wealth, investment, contributions, gamble_observed_samples, \
 		   attention, utilities, all_portfolios, update_times, assistance_received
