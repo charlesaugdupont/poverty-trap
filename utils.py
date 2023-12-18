@@ -149,8 +149,8 @@ def generate_gambles(N, gain_right_bound, prob_left):
 	"""
 	loss_probs = np.random.uniform(prob_left, 1-prob_left, N)
 	gain_probs = 1 - loss_probs
-	outcomes1 = np.random.uniform(0.90, 0.95, N)
-	outcomes2 = np.random.uniform(1.6, gain_right_bound, N)
+	outcomes1  = np.random.uniform(0.90, 0.95, N)
+	outcomes2  = np.random.uniform(1.6, gain_right_bound, N)
 
 	gambles = []
 	for i in range(N):

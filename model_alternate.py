@@ -19,8 +19,7 @@ def simulation(NUM_AGENTS=1225,
 			   COMMUNITIES=None,
 			   COMMUNITY_MEMBERSHIP=None,
 			   INIT_WEALTH_VALUES=None,
-			   ASSISTANCE=None,
-			   idx=-1):
+			   ASSISTANCE=None):
 	"""
 	Runs ABM model.
 	Args:
@@ -51,11 +50,11 @@ def simulation(NUM_AGENTS=1225,
 	gamble_prior_samples = np.zeros((NUM_GAMBLE_SAMPLES, len(gambles)))
 	for i,g in enumerate(gambles):
 		gamble_prior_samples[:,i] = np.random.choice(g["outcomes"], NUM_GAMBLE_SAMPLES, p=g["probs"])
-	gambles_prior_mu  = np.mean(gamble_prior_samples, axis=0)
+	gambles_prior_mu = np.mean(gamble_prior_samples, axis=0)
 	assert SAFE_RETURN <= np.min(gambles_prior_mu.round(1))
 
 	# generate some random gamble returns
-	gamble_random_returns = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in gambles]])
+	gamble_random_returns = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in gambles]]) # shape : (NUM_PROJECTS, NUM_STEPS)
 
 	# array to keep track of actual empirical gamble returns
 	gamble_observed_samples = np.zeros((STEPS, len(gambles)), dtype=np.float16)
@@ -81,7 +80,7 @@ def simulation(NUM_AGENTS=1225,
 
 	# generate some Poisson distributed portfolio update times
 	poisson_times = np.random.poisson(POISSON_SCALE, size=(NUM_AGENTS, 12))
-	update_times = {k:list(v) for k,v in enumerate(np.cumsum(poisson_times, axis=1))}
+	update_times  = {k:list(v) for k,v in enumerate(np.cumsum(poisson_times, axis=1))}
 
 	# initialize portfolios and compute expected returns for each agent
 	portfolios = initialize_portfolios(NUM_AGENTS, len(COMMUNITIES)+1, utilities, gamble_prior_samples, COMMUNITY_MEMBERSHIP)
@@ -107,12 +106,12 @@ def simulation(NUM_AGENTS=1225,
 		expected_returns  = np.array([sum(agent_expected_returns[i]) for i in range(NUM_AGENTS)])
 		consumption[step] = np.maximum((1-SAVING_PROP)*wealth[step]*expected_returns, 0)
 
-		# adjust wealth and track which agents are not indebted
+		# consume and determine which agents are not indebted afterwards
 		wealth[step+1] = wealth[step] - consumption[step]
 		not_indebted   = np.where(wealth[step+1]>=0)
 
 		# compute investment
-		investment[step] = np.maximum(wealth[step+1], 0)
+		investment[step] = np.maximum(wealth[step+1], 0) # should be nonnegative
 
 		# compute project contributions using portfolios
 		contributions[step] = investment[step] @ portfolios
@@ -128,8 +127,16 @@ def simulation(NUM_AGENTS=1225,
 			if returns[c_idx] > 0: # project reached minimum investment threshold
 				indebted = [agent for agent in c if wealth[step+1][agent] < 0]
 				if len(indebted):
+					# calculate total debt of indebted community members
 					total_debt = sum([wealth[step+1][a] for a in indebted])
+					
+					# calculate portion of return put aside for indebted community members
 					assistance_amount = contributions[step][c_idx] * returns[c_idx] * ASSISTANCE
+
+					# adjust the amount of return left over for non indebted community members
+					returns[c_idx] = returns[c_idx] * (1-ASSISTANCE) 
+
+					# apportion the assistance amount
 					for a in indebted:
 						proportional_assistance_amount = (wealth[step+1][a]/total_debt) * assistance_amount
 						wealth[step+1][a] += proportional_assistance_amount
@@ -137,11 +144,12 @@ def simulation(NUM_AGENTS=1225,
 							assistance_received[a] = [(step,proportional_assistance_amount)]
 						else:
 							assistance_received[a].append((step,proportional_assistance_amount))
-					returns[c_idx] = returns[c_idx] * (1-ASSISTANCE)
 
 		# update wealth of non-indebted agents
-		portfolio_returns_for_non_indebted_agents = (np.multiply(investment[step][:,np.newaxis], portfolios) @ returns)[not_indebted]
-		wealth[step+1][not_indebted] = np.minimum(6e4, portfolio_returns_for_non_indebted_agents)
+		wealth[step+1][not_indebted] = (np.multiply(investment[step][:,np.newaxis], portfolios) @ returns)[not_indebted]
+
+		# apply min operation to wealth to avoid numerical error
+		wealth[step+1] = np.minimum(6e4, wealth[step+1])
 
 	return wealth, investment, contributions, gamble_observed_samples, \
 		   attention, utilities, all_portfolios, update_times, assistance_received
