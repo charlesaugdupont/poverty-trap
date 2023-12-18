@@ -60,12 +60,12 @@ def simulation(NUM_AGENTS=1225,
 	gamble_observed_samples = np.zeros((STEPS, len(gambles)), dtype=np.float16)
 
 	# attributes and metrics
-	consumption 		= np.zeros((STEPS, NUM_AGENTS), dtype=np.float16)
-	investment 			= np.zeros((STEPS, NUM_AGENTS), dtype=np.float16)
-	wealth 				= np.zeros((STEPS+1, NUM_AGENTS), dtype=np.float16)
-	wealth[0,:] 		= INIT_WEALTH_VALUES
-	attention 			= np.random.uniform(size=NUM_AGENTS).astype(np.float16)
-	contributions		= np.zeros((STEPS, len(COMMUNITIES)+1), dtype=np.float16)
+	consumption = np.zeros((STEPS, NUM_AGENTS), dtype=np.float16)
+	investment = np.zeros((STEPS, NUM_AGENTS), dtype=np.float16)
+	wealth = np.zeros((STEPS+1, NUM_AGENTS), dtype=np.float16)
+	wealth[0,:] = INIT_WEALTH_VALUES
+	attention = np.random.uniform(size=NUM_AGENTS).astype(np.float16)
+	contributions = np.zeros((STEPS, len(COMMUNITIES)+1), dtype=np.float16)
 	assistance_received = {}
 
 	# CPT utilities
@@ -80,7 +80,7 @@ def simulation(NUM_AGENTS=1225,
 
 	# generate some Poisson distributed portfolio update times
 	poisson_times = np.random.poisson(POISSON_SCALE, size=(NUM_AGENTS, 12))
-	update_times  = {k:list(v) for k,v in enumerate(np.cumsum(poisson_times, axis=1))}
+	update_times = {k:list(v) for k,v in enumerate(np.cumsum(poisson_times, axis=1))}
 
 	# initialize portfolios and compute expected returns for each agent
 	portfolios = initialize_portfolios(NUM_AGENTS, len(COMMUNITIES)+1, utilities, gamble_prior_samples, COMMUNITY_MEMBERSHIP)
@@ -103,12 +103,12 @@ def simulation(NUM_AGENTS=1225,
 									 agent_expected_returns, portfolios, all_portfolios)
 
 		# agents choose consumption, and we compute contributions to each project
-		expected_returns  = np.array([sum(agent_expected_returns[i]) for i in range(NUM_AGENTS)])
+		expected_returns = np.array([sum(agent_expected_returns[i]) for i in range(NUM_AGENTS)])
 		consumption[step] = np.maximum((1-SAVING_PROP)*wealth[step]*expected_returns, 0)
 
 		# consume and determine which agents are not indebted afterwards
 		wealth[step+1] = wealth[step] - consumption[step]
-		not_indebted   = np.where(wealth[step+1]>=0)
+		not_indebted = np.where(wealth[step+1]>=0)
 
 		# compute investment
 		investment[step] = np.maximum(wealth[step+1], 0) # should be nonnegative
