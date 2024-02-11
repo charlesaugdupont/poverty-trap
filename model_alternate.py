@@ -20,8 +20,7 @@ def simulation(NUM_AGENTS=1225,
 			   SEED=None,
 			   COMMUNITIES=None,
 			   COMMUNITY_MEMBERSHIP=None,
-			   INIT_WEALTH_VALUES=None,
-			   intervention_seed=None):
+			   INIT_WEALTH_VALUES=None):
 	"""
 	Runs ABM model.
 	Args:
@@ -87,7 +86,7 @@ def simulation(NUM_AGENTS=1225,
 	all_portfolios = {i:[portfolios[i][COMMUNITY_MEMBERSHIP[i]]] for i in range(NUM_AGENTS)}
 
 	# RUN SIMULATION
-	for step in tqdm(range(STEPS*2)):
+	for step in tqdm(range(STEPS)):
 
 		# check for portfolio updates after a "burn-in" period of 5 steps
 		if step >= 5:
@@ -114,6 +113,11 @@ def simulation(NUM_AGENTS=1225,
 
 		# update agent wealth
 		wealth[step+1] = np.minimum(6e4, np.multiply(invested_wealth[:,np.newaxis], portfolios) @ returns)
+
+		# find poorest 100 of agents and apply stimulus
+		if step == 99:
+			poorest_agents = np.argsort(wealth[step+1])[:100]
+			wealth[step+1,poorest_agents] += 10
 
 	return wealth, investment, contributions, gamble_observed_samples, \
 		   attention, utilities, all_portfolios, update_times

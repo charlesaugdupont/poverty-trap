@@ -60,8 +60,7 @@ if __name__ == "__main__":
 			SAVING_PROP=row[2],
 			PROB_LEFT=row[3],
 			ASSISTANCE=row[5],
-			INIT_WEALTH_VALUES=initial_wealth,
-			idx=str(idx)
+			INIT_WEALTH_VALUES=initial_wealth
 		)
 
 		# store results
