@@ -78,7 +78,7 @@ def simulation(NUM_AGENTS=1225,
 							delta_neg=delta_neg[i]) for i in range(NUM_AGENTS)]
 
 	# generate some Poisson distributed portfolio update times
-	poisson_times = np.random.poisson(POISSON_SCALE, size=(NUM_AGENTS, 12))
+	poisson_times = np.random.poisson(POISSON_SCALE, size=(NUM_AGENTS, 20))
 	update_times = {k:list(v) for k,v in enumerate(np.cumsum(poisson_times, axis=1))}
 
 	# initialize portfolio for each agent
@@ -120,7 +120,7 @@ def simulation(NUM_AGENTS=1225,
 			wealth[step+1,poorest_agents] += 10
 
 	return wealth, investment, contributions, gamble_observed_samples, \
-		   attention, utilities, all_portfolios, update_times
+		   attention, utilities, all_portfolios, update_times, poorest_agents
 
 
 def portfolio_update(i, utility, gamble_returns, community_membership, 
