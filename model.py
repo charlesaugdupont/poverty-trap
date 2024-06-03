@@ -4,19 +4,20 @@ from cpt import *
 from tqdm.auto import tqdm
 
 
-def simulation(NUM_AGENTS=1225, 
-	       	   STEPS=100,
-			   SAFE_RETURN=1.10,
-			   PROJECT_COSTS=None,  
-			   SAVING_PROP=0.8,
-			   GAIN_RIGHT=1.7,
-			   PROB_LEFT=0.3,
-			   POISSON_SCALE=10,
-			   NUM_GAMBLE_SAMPLES=2000,
-			   SEED=None,
-			   COMMUNITIES=None,
-			   COMMUNITY_MEMBERSHIP=None,
-			   INIT_WEALTH_VALUES=None):
+def simulation(
+		NUM_AGENTS=1225, 
+		STEPS=100,
+		SAFE_RETURN=1.10,
+		PROJECT_COSTS=None,  
+		SAVING_PROP=0.8,
+		GAIN_RIGHT=1.7,
+		PROB_LEFT=0.3,
+		POISSON_SCALE=10,
+		NUM_GAMBLE_SAMPLES=2000,
+		SEED=None,
+		COMMUNITIES=None,
+		COMMUNITY_MEMBERSHIP=None,
+		INIT_WEALTH_VALUES=None):
 	"""
 	Runs ABM model.
 	Args:
