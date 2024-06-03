@@ -6,8 +6,7 @@ from SALib.sample import saltelli
 from model import *
 
 import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning) 
-
+warnings.filterwarnings("ignore") 
 
 # random seeds
 SEEDS = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71]
@@ -28,7 +27,6 @@ PROBLEM = {
 }
 
 NUM_SAMPLES = 1024
-
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Run the simulation with given parameters.")
@@ -53,12 +51,15 @@ def main():
 
     # generate Saltelli samples
     X = saltelli.sample(PROBLEM, NUM_SAMPLES, calc_second_order=False)
-    print(f"Total saltelli sample size is {X.shape}")
+    print(f"\nTotal saltelli sample size is {X.shape}.")
     L = int(X.shape[0]/128)
     X = X[idx*L:(idx+1)*L]
+    print(f"Script will run chunk #{idx+1} with {X.shape[0]} parameter combinations.\n")
 
     # run each param combination
     for iter_idx, row in enumerate(X):
+
+        print(f"Running parameter combination {iter_idx+1}/{X.shape[0]}...")
 
         # load graph based on seed number and alpha parameter
         with open(f"{graph_dir}/{seed_idx}_{row[4]}.pickle", "rb") as f:
@@ -75,8 +76,7 @@ def main():
             GAIN_RIGHT=row[1],
             SAVING_PROP=row[2],
             PROB_LEFT=row[3],
-            INIT_WEALTH_VALUES=initial_wealth,
-            idx=str(idx)
+            INIT_WEALTH_VALUES=initial_wealth
         )
 
         # store results
@@ -84,7 +84,6 @@ def main():
         pickle.dump(data, lzma.open(output_dir + f"/{seed_idx}_{idx*L + iter_idx + 1}_paper.pkl.lzma", 'wb'))
 
         print(f"JOB {idx} : finished seed {seed_idx}, param {idx*L + iter_idx + 1}.", flush=True)
-
 
 if __name__ == "__main__":
     main()

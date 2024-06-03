@@ -1,6 +1,7 @@
 import random
 from utils import *
 from cpt import *
+from tqdm.auto import tqdm
 
 
 def simulation(NUM_AGENTS=1225, 
@@ -81,7 +82,7 @@ def simulation(NUM_AGENTS=1225,
 	all_portfolios = {i:[portfolios[i][COMMUNITY_MEMBERSHIP[i]]] for i in range(NUM_AGENTS)}
 
 	# RUN SIMULATION
-	for step in range(STEPS):
+	for step in tqdm(range(STEPS)):
 
 		# check for portfolio updates after a "burn-in" period of 5 steps
 		if step >= 5:
