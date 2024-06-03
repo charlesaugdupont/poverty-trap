@@ -140,3 +140,4 @@ figures/*
 
 *.pdf
 jobs/*
+data_processing_scripts/*
