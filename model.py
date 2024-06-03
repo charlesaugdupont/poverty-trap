@@ -2,9 +2,6 @@ import random
 from utils import *
 from cpt import *
 
-#################################################################################################
-
-# Simulation
 
 def simulation(NUM_AGENTS=1225, 
 	       	   STEPS=100,
@@ -18,8 +15,7 @@ def simulation(NUM_AGENTS=1225,
 			   SEED=None,
 			   COMMUNITIES=None,
 			   COMMUNITY_MEMBERSHIP=None,
-			   INIT_WEALTH_VALUES=None,
-			   ASSISTANCE=None):
+			   INIT_WEALTH_VALUES=None):
 	"""
 	Runs ABM model.
 	Args:
@@ -50,11 +46,10 @@ def simulation(NUM_AGENTS=1225,
 	gamble_prior_samples = np.zeros((NUM_GAMBLE_SAMPLES, len(gambles)))
 	for i,g in enumerate(gambles):
 		gamble_prior_samples[:,i] = np.random.choice(g["outcomes"], NUM_GAMBLE_SAMPLES, p=g["probs"])
-	gambles_prior_mu = np.mean(gamble_prior_samples, axis=0)
-	assert SAFE_RETURN <= np.min(gambles_prior_mu.round(1))
+	assert SAFE_RETURN <= np.min(np.mean(gamble_prior_samples, axis=0).round(1))
 
 	# generate some random gamble returns
-	gamble_random_returns = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in gambles]]) # shape : (NUM_PROJECTS, NUM_STEPS)
+	gamble_random_returns = np.row_stack([[get_gamble_returns(P, size=STEPS) for P in gambles]])
 
 	# array to keep track of actual empirical gamble returns
 	gamble_observed_samples = np.zeros((STEPS, len(gambles)), dtype=np.float16)
@@ -66,7 +61,6 @@ def simulation(NUM_AGENTS=1225,
 	wealth[0,:] = INIT_WEALTH_VALUES
 	attention = np.random.uniform(size=NUM_AGENTS).astype(np.float16)
 	contributions = np.zeros((STEPS, len(COMMUNITIES)+1), dtype=np.float16)
-	assistance_received = {}
 
 	# CPT utilities
 	gamma_pos = np.random.uniform(5, 30, size=NUM_AGENTS).round(2)
@@ -82,9 +76,8 @@ def simulation(NUM_AGENTS=1225,
 	poisson_times = np.random.poisson(POISSON_SCALE, size=(NUM_AGENTS, 12))
 	update_times = {k:list(v) for k,v in enumerate(np.cumsum(poisson_times, axis=1))}
 
-	# initialize portfolios and compute expected returns for each agent
+	# initialize portfolio for each agent
 	portfolios = initialize_portfolios(NUM_AGENTS, len(COMMUNITIES)+1, utilities, gamble_prior_samples, COMMUNITY_MEMBERSHIP)
-	agent_expected_returns = [portfolios[i][COMMUNITY_MEMBERSHIP[i]] * gambles_prior_mu[COMMUNITY_MEMBERSHIP[i]] for i in range(NUM_AGENTS)]
 	all_portfolios = {i:[portfolios[i][COMMUNITY_MEMBERSHIP[i]]] for i in range(NUM_AGENTS)}
 
 	# RUN SIMULATION
@@ -93,70 +86,35 @@ def simulation(NUM_AGENTS=1225,
 		# check for portfolio updates after a "burn-in" period of 5 steps
 		if step >= 5:
 			recent_samples = gamble_observed_samples[:step,:]
-			mu = np.mean(recent_samples, axis=0)			
 			for i in range(NUM_AGENTS):
 				# check if agent needs to be updated at current step
 				if step in update_times[i]:
 					comm_mem = COMMUNITY_MEMBERSHIP[i]
 					portfolio_update(i, utilities[i], recent_samples[:,comm_mem], 
-						      		 comm_mem, attention[i], mu[comm_mem], gambles_prior_mu[comm_mem],
-									 agent_expected_returns, portfolios, all_portfolios)
+						      		 comm_mem, attention[i], portfolios, all_portfolios)
 
 		# agents choose consumption, and we compute contributions to each project
-		expected_returns = np.array([sum(agent_expected_returns[i]) for i in range(NUM_AGENTS)])
-		consumption[step] = np.maximum((1-SAVING_PROP)*wealth[step]*expected_returns, 0)
-
-		# consume and determine which agents are not indebted afterwards
-		wealth[step+1] = wealth[step] - consumption[step]
-		not_indebted = np.where(wealth[step+1]>=0)
-
-		# compute investment
-		investment[step] = np.maximum(wealth[step+1], 0) # should be nonnegative
-
-		# compute project contributions using portfolios
-		contributions[step] = investment[step] @ portfolios
+		consumption[step] = (1-SAVING_PROP)*wealth[step]
+		invested_wealth = wealth[step] - consumption[step]
+		investment[step] = invested_wealth
+		project_contributions = invested_wealth @ portfolios
+		contributions[step] = project_contributions
 
 		# get gamble returns
-		successful_gambles = contributions[step] >= PROJECT_COSTS
+		successful_gambles = project_contributions >= PROJECT_COSTS
 		successful_gambles[-1] = True # safe asset has guaranteed return
 		returns = (successful_gambles * gamble_random_returns[:,step]).astype(np.float16)
-		gamble_observed_samples[step] = copy.deepcopy(returns)
+		gamble_observed_samples[step] = returns
 
-		# provide assistance to indebted community members
-		for c_idx, c in enumerate(COMMUNITIES):
-			if returns[c_idx] > 0: # project reached minimum investment threshold
-				indebted = [agent for agent in c if wealth[step+1][agent] < 0]
-				if len(indebted):
-					# calculate total debt of indebted community members
-					total_debt = sum([wealth[step+1][a] for a in indebted])
-					
-					# calculate portion of return put aside for indebted community members
-					assistance_amount = contributions[step][c_idx] * returns[c_idx] * ASSISTANCE
-
-					# adjust the amount of return left over for non indebted community members
-					returns[c_idx] = returns[c_idx] * (1-ASSISTANCE) 
-
-					# apportion the assistance amount
-					for a in indebted:
-						proportional_assistance_amount = (wealth[step+1][a]/total_debt) * assistance_amount
-						wealth[step+1][a] += proportional_assistance_amount
-						if a not in assistance_received:
-							assistance_received[a] = [(step,proportional_assistance_amount)]
-						else:
-							assistance_received[a].append((step,proportional_assistance_amount))
-
-		# update wealth of non-indebted agents
-		wealth[step+1][not_indebted] = (np.multiply(investment[step][:,np.newaxis], portfolios) @ returns)[not_indebted]
-
-		# apply min operation to wealth to avoid numerical error
-		wealth[step+1] = np.minimum(6e4, wealth[step+1])
+		# update agent wealth
+		wealth[step+1] = np.minimum(6e4, np.multiply(invested_wealth[:,np.newaxis], portfolios) @ returns)
 
 	return wealth, investment, contributions, gamble_observed_samples, \
-		   attention, utilities, all_portfolios, update_times, assistance_received
+		   attention, utilities, all_portfolios, update_times
 
 
-def portfolio_update(i, utility, gamble_returns, community_membership, attention, mu, 
-		     		 gambles_prior_mu, agent_expected_returns, portfolios, all_portfolios):
+def portfolio_update(i, utility, gamble_returns, community_membership, 
+					 attention, portfolios, all_portfolios):
 	"""
 	Update an agent's portfolio and expected portfolio return.
 	Args:
@@ -165,9 +123,6 @@ def portfolio_update(i, utility, gamble_returns, community_membership, attention
 		gamble_returns		   : array of observed project returns relevant to the agent; shape is (num steps so far, # projects)
 		community_membership   : array of indices of the communities that the agent is a part of
 		attention			   : agent attention parameter
-		mu 					   : mean vector of observed project returns
-		gambles_prior_mu	   : mean vector of prior project samples
-		agent_expected_returns : vector of expected portfolio return for all agents
 		PORTFOLIOS			   : dictionary from agent index to current agent portfolio
 		all_portfolios		   : dictionary from agent index to historical list of agent's portfolios
 	"""
@@ -195,10 +150,6 @@ def portfolio_update(i, utility, gamble_returns, community_membership, attention
 	new_portfolio = np.zeros(portfolios.shape[1])
 	new_portfolio[community_membership] = updated_portfolio
 	portfolios[i] = new_portfolio
-
-	# update expected portfolio return
-	updated_mu = (1-attention)*gambles_prior_mu + attention*mu
-	agent_expected_returns[i] = updated_mu * portfolios[i][community_membership]
 
 
 def initialize_portfolios(NUM_AGENTS, num_projects, utilities, gamble_samples, COMMUNITY_MEMBERSHIP):
