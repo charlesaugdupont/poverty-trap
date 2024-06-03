@@ -1,6 +1,6 @@
 import random
 from utils import *
-from cpt_optimisation import *
+from cpt import *
 
 #################################################################################################
 

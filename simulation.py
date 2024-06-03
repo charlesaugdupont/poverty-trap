@@ -1,5 +1,5 @@
 from SALib.sample import saltelli
-from model_alternate import *
+from model import *
 import pickle
 import time
 import lzma
