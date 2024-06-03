@@ -10,6 +10,7 @@
     - `pip install -r requirements.txt`
 
 # Experiments
+- Navigate to `src` directory
 - Generate Social Distance Attachment (SDA) graphs
     - `python generate_sda_graphs.py --graph_dir graphs`
 - Run the model
