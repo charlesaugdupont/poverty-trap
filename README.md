@@ -1,4 +1,4 @@
-# Multiscale Dynamics of Poverty Traps and Inequality: Individual and Community Mechanisms for Sustainable Development
+# Emergent poverty traps at multiple levels impede social mobility
 The code inside of this repository accompanies the paper with the above title.
 
 ## Setup
